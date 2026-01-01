@@ -1,71 +1,61 @@
 /* 歌词 Overlay 遮罩 */
 .lyrics-overlay {
   position: fixed;
-  inset: 0;
+  inset: 0 0 72px 0; /* ⭐ 为底部 PlayerBar (72px) 留出空间 */
   background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(20px);
-  z-index: 9999;
+  z-index: 999; /* ⭐ 低于 PlayerBar (1000)，确保 PlayerBar 始终在最上层 */
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 250ms ease, visibility 250ms ease;
+  /* ⭐ 移除 CSS 动画，改用 framer-motion */
 }
 
-.lyrics-overlay-open {
-  opacity: 1;
-  visibility: visible;
-}
+/* ⭐ 移除旧的 .lyrics-overlay-open 类，现在由 framer-motion 控制 */
 
 /* 歌词内容容器 */
 .lyrics-content {
   position: relative;
   width: 100%;
-  max-width: 1200px;
+  max-width: 900px; /* ⭐ 缩小整体宽度，让歌词更紧凑 */
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 80px 60px;
-  opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 300ms ease 100ms, transform 300ms ease 100ms;
+  padding: 80px 60px 40px; /* ⭐ 底部 padding 减少，因为已经留出空间 */
+  /* ⭐ 移除 CSS 动画，改用 framer-motion */
 }
 
-.lyrics-overlay-open .lyrics-content {
-  opacity: 1;
-  transform: translateY(0);
-}
+/* ⭐ 移除旧的 .lyrics-overlay-open .lyrics-content 规则 */
 
 /* 左右布局 */
 .lyrics-layout {
   display: flex;
-  gap: 60px;
+  gap: 48px;
   height: 100%;
   align-items: flex-start;
 }
 
-/* 左侧：封面区域 (40%) */
+/* 左侧：封面区域（固定宽度，更克制）*/
 .lyrics-cover-section {
-  flex: 0 0 40%;
+  flex: 0 0 280px; /* ⭐ 固定宽度 280px，不再占大比例 */
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  height: 100%;
+  gap: 20px;
   padding-top: 60px;
 }
 
 .lyrics-cover {
-  width: 100%;
-  max-width: 400px;
-  aspect-ratio: 1;
+  width: 240px; /* ⭐ 固定 240x240 */
+  height: 240px;
   border-radius: 16px;
   overflow: hidden;
   background: #e5e5e5;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  flex-shrink: 0;
 }
 
 .lyrics-cover-image {
@@ -84,13 +74,13 @@
   background: #e5e5e5;
 }
 
-/* 右侧：歌词区域 (60%) */
+/* 右侧：歌词区域（占据剩余空间，至少 70%）*/
 .lyrics-text-section {
-  flex: 1;
+  flex: 1; /* ⭐ 自动占据剩余空间 */
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-width: 0;
+  min-width: 0; /* 允许 flex 子元素缩小 */
 }
 
 /* 关闭按钮 */
@@ -171,28 +161,73 @@
   background: #a3a3a3;
 }
 
-/* 歌词占位 */
-.lyrics-placeholder {
+/* 歌词状态（Loading / Error / None）*/
+.lyrics-state {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  justify-content: center;
   gap: 12px;
   color: #a3a3a3;
   padding: 40px 0;
 }
 
-.lyrics-placeholder svg {
+.lyrics-state svg {
+  opacity: 0.5;
+}
+
+.lyrics-state p {
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Loading 动画 */
+.lyrics-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 歌词行容器 */
+.lyrics-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* 歌词行 */
+.lyrics-line {
+  padding: 6px 0;
+  color: #525252;
+  transition: color 200ms ease, opacity 200ms ease;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+/* 空行（♪ 符号）*/
+.lyrics-line:empty::before {
+  content: '♪';
   opacity: 0.3;
 }
 
-.lyrics-placeholder p {
-  font-size: 14px;
-  margin: 0;
+/* 歌词元信息（来源/类型）*/
+.lyrics-meta {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e5e5;
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
   color: #a3a3a3;
 }
 
-.lyrics-placeholder p {
-  font-size: 16px;
-  margin: 0;
+.lyrics-source,
+.lyrics-type {
+  opacity: 0.6;
 }

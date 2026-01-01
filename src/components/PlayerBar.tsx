@@ -24,6 +24,7 @@ export function PlayerBar() {
     duration,
     volume,
     errorMessage,
+    showLyricsOverlay,  // ⭐ 读取 overlay 状态
     togglePlayPause,
     next,
     prev,
@@ -227,11 +228,11 @@ export function PlayerBar() {
         
         {/* 左侧：当前曲目信息 */}
         <div className="playerbar-left">
-          {/* ⭐ 封面（可点击打开歌词）*/}
+          {/* ⭐ 封面（点击 toggle 歌词 Overlay）*/}
           <div 
             className="track-cover" 
-            onClick={() => setShowLyricsOverlay(true)}
-            title="查看歌词"
+            onClick={() => setShowLyricsOverlay(!showLyricsOverlay)}
+            title={showLyricsOverlay ? "关闭歌词" : "查看歌词"}
           >
             {coverUrl ? (
               <img src={coverUrl} alt="" className="cover-image" />
