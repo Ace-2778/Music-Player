@@ -4,7 +4,7 @@ import "node:url";
 import "node:path";
 import "node:fs";
 import "node:crypto";
-import { Z, _, Y } from "./main-DiVpVUqP.js";
+import { Z, _, Y } from "./main-B70ei0gA.js";
 export {
   Z as MAIN_DIST,
   _ as RENDERER_DIST,
