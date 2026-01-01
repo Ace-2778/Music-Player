@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePlayerStore } from '../store/playerStore'
 import { fetchCoverFromInternet } from '../utils/coverSearch'
 import { fetchLyrics } from '../utils/lyricsService'
-import { LyricsResult } from '../types/lyrics'
+import { LyricsResult, LyricsLine } from '../types/lyrics'
 import './LyricsOverlay.css'
 
 export function LyricsOverlay() {
@@ -11,11 +11,14 @@ export function LyricsOverlay() {
     showLyricsOverlay, 
     setShowLyricsOverlay, 
     currentTrack,
-    lyricsOptions  // ⭐ 读取歌词显示选项
+    lyricsOptions,  // ⭐ 读取歌词显示选项
+    audioElement    // ⭐ 获取 audio 元素用于时间追踪
   } = usePlayerStore()
   const [coverUrl, setCoverUrl] = useState<string | null>(null)
   const [lyrics, setLyrics] = useState<LyricsResult | null>(null)
   const [lyricsLoading, setLyricsLoading] = useState(false)
+  const [currentTimeMs, setCurrentTimeMs] = useState(0) // ⭐ 当前播放时间（毫秒）
+  const lyricsBodyRef = useRef<HTMLDivElement>(null) // ⭐ 歌词滚动容器引用
 
   // 加载封面
   useEffect(() => {
@@ -109,6 +112,79 @@ export function LyricsOverlay() {
     loadLyrics()
   }, [showLyricsOverlay, currentTrack])
 
+  // ⭐ 二分查找：返回当前应高亮的歌词行 index
+  const getActiveLyricIndex = (lines: LyricsLine[], currentTimeMs: number): number => {
+    if (!lines || lines.length === 0) return -1
+    
+    // 检查第一行是否有 timeMs（是否为 LRC 格式）
+    if (lines[0].timeMs === undefined) return -1
+    
+    // 二分查找最后一个 timeMs <= currentTimeMs 的行
+    let left = 0
+    let right = lines.length - 1
+    let result = -1
+    
+    while (left <= right) {
+      const mid = Math.floor((left + right) / 2)
+      const lineTime = lines[mid].timeMs!
+      
+      if (lineTime <= currentTimeMs) {
+        result = mid
+        left = mid + 1
+      } else {
+        right = mid - 1
+      }
+    }
+    
+    return result
+  }
+
+  // ⭐ 实时更新播放时间（用于歌词同步）
+  useEffect(() => {
+    if (!showLyricsOverlay || !audioElement) {
+      return
+    }
+
+    let animationFrameId: number
+
+    const updateTime = () => {
+      setCurrentTimeMs(audioElement.currentTime * 1000)
+      animationFrameId = requestAnimationFrame(updateTime)
+    }
+
+    animationFrameId = requestAnimationFrame(updateTime)
+
+    return () => {
+      cancelAnimationFrame(animationFrameId)
+    }
+  }, [showLyricsOverlay, audioElement])
+
+  // ⭐ 计算当前高亮的歌词行
+  const activeIndex = lyrics?.lines ? getActiveLyricIndex(lyrics.lines, currentTimeMs) : -1
+
+  // ⭐ 自动滚动：当 activeIndex 变化时，滚动到该行
+  useEffect(() => {
+    if (activeIndex === -1 || !lyricsBodyRef.current) return
+
+    const activeLine = lyricsBodyRef.current.querySelector(
+      `[data-line-index="${activeIndex}"]`
+    ) as HTMLElement
+
+    if (activeLine) {
+      activeLine.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      })
+    }
+  }, [activeIndex])
+
+  // ⭐ 点击歌词行跳转播放时间
+  const handleLineClick = (line: LyricsLine) => {
+    if (line.timeMs !== undefined && audioElement) {
+      audioElement.currentTime = line.timeMs / 1000
+    }
+  }
+
   // ESC 关闭
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -183,17 +259,16 @@ export function LyricsOverlay() {
 
             {/* 右侧：歌词 */}
             <div className="lyrics-text-section">
-              {/* 歌曲信息 */}
+              {/* 歌曲信息（固定顶部） */}
               <div className="lyrics-header">
                 <h1 className="lyrics-title">{currentTrack.title}</h1>
                 <p className="lyrics-artist">{currentTrack.artist}</p>
               </div>
-
-              {/* 歌词内容（可滚动）*/}
-              <div 
-                className="lyrics-scroll-area"
+              {/* 歌词内容（仅此区域滚动） */}
+              <div
+                ref={lyricsBodyRef}
+                className="lyrics-body-scroll"
                 style={{
-                  // ⭐ 使用 lyricsOptions 控制歌词样式
                   textAlign: lyricsOptions.align,
                   fontFamily: lyricsOptions.fontFamily,
                   fontSize: `${lyricsOptions.fontSize}px`,
@@ -226,17 +301,26 @@ export function LyricsOverlay() {
                 {/* Success 状态：显示歌词 */}
                 {!lyricsLoading && lyrics && lyrics.type !== 'none' && lyrics.lines && (
                   <div className="lyrics-lines">
-                    {lyrics.lines.map((line, index) => (
-                      <div 
-                        key={index} 
-                        className="lyrics-line"
-                        data-time={line.timeMs} // ⭐ 保留 timeMs 供后续滚动使用
-                      >
-                        {line.text || '♪'}
-                      </div>
-                    ))}
-                    
-                    {/* 显示歌词来源与类型（调试用，可选）*/}
+                    {lyrics.lines.map((line, index) => {
+                      const isActive = index === activeIndex
+                      const hasTimeMs = line.timeMs !== undefined
+                      
+                      return (
+                        <div
+                          key={index}
+                          className={`lyrics-line ${
+                            isActive ? 'lyrics-line-active' : ''
+                          } ${
+                            hasTimeMs ? 'lyrics-line-clickable' : ''
+                          }`}
+                          data-time={line.timeMs}
+                          data-line-index={index}
+                          onClick={() => handleLineClick(line)}
+                        >
+                          {line.text || '♪'}
+                        </div>
+                      )
+                    })}
                     <div className="lyrics-meta">
                       <span className="lyrics-source">
                         {lyrics.source === 'cache' ? '💾 Cached' : `🌐 ${lyrics.source}`}

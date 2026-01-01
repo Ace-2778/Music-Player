@@ -21,33 +21,36 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 80px 60px 40px; /* ⭐ 底部 padding 减少，因为已经留出空间 */
+  padding: 48px 60px 32px; /* ⭐ 减少上下 padding，腾出更多垂直空间给歌词 */
   /* ⭐ 移除 CSS 动画，改用 framer-motion */
 }
 
 /* ⭐ 移除旧的 .lyrics-overlay-open .lyrics-content 规则 */
 
-/* 左右布局 */
+/* 左右布局 - 使用 Grid 实现左窄右宽布局 */
 .lyrics-layout {
-  display: flex;
-  gap: 48px;
+  display: grid;
+  grid-template-columns: 2fr 3fr; /* ⭐ 左侧 40% / 右侧 60% */
+  gap: 0; /* ⭐ 移除间距，让两个 box 紧密相连 */
   height: 100%;
-  align-items: flex-start;
+  flex: 1; /* ⭐ 占满可用高度，便于内部滚动 */
+  min-height: 0; /* ⭐ 防止子元素高度溢出，保证滚动生效 */
+  width: 100%;
 }
 
-/* 左侧：封面区域（固定宽度，更克制）*/
+/* 左侧 Box：封面容器（50% 宽，封面始终居中）*/
 .lyrics-cover-section {
-  flex: 0 0 280px; /* ⭐ 固定宽度 280px，不再占大比例 */
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  padding-top: 60px;
+  align-items: center; /* ⭐ 垂直居中 */
+  justify-content: center; /* ⭐ 水平居中 */
+  height: 100%; /* ⭐ 等高 */
+  padding: 40px; /* ⭐ 内边距，让封面不贴边 */
+  background: #fafafa; /* ⭐ 轻微背景色区分左右区域（可选）*/
 }
 
 .lyrics-cover {
-  width: 240px; /* ⭐ 固定 240x240 */
-  height: 240px;
+  width: 280px; /* ⭐ 封面尺寸可根据需要调整 */
+  height: 280px;
   border-radius: 16px;
   overflow: hidden;
   background: #e5e5e5;
@@ -74,13 +77,39 @@
   background: #e5e5e5;
 }
 
-/* 右侧：歌词区域（占据剩余空间，至少 70%）*/
+/* 右侧 Box：歌词容器（可滚动，左对齐）*/
+
 .lyrics-text-section {
-  flex: 1; /* ⭐ 自动占据剩余空间 */
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-width: 0; /* 允许 flex 子元素缩小 */
+  min-height: 0; /* ⭐ 允许子元素滚动区域正确计算高度 */
+  padding: 40px 60px;
+  background: #ffffff;
+}
+
+/* 歌词内容滚动区域，仅 lyrics-body-scroll 可滚动 */
+.lyrics-body-scroll {
+  flex: 1;
+  min-height: 0; /* 关键：允许 flex 子项正确滚动 */
+  overflow-y: auto;
+  overflow-x: hidden; /* ⭐ 隐藏横向滚动条 */
+  /* 保持与父容器一致的 padding-right 可选 */
+}
+
+/* 自定义滚动条样式 */
+.lyrics-body-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.lyrics-body-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.lyrics-body-scroll::-webkit-scrollbar-thumb {
+  background: #d4d4d4;
+  border-radius: 3px;
+}
+.lyrics-body-scroll::-webkit-scrollbar-thumb:hover {
+  background: #a3a3a3;
 }
 
 /* 关闭按钮 */
@@ -136,30 +165,14 @@
   white-space: nowrap;
 }
 
-/* 歌词滚动区域 */
+/* 歌词内容区域（不再需要单独滚动，整个右侧 box 滚动）*/
 .lyrics-scroll-area {
   flex: 1;
-  overflow-y: auto;
-  padding-right: 12px;
+  /* ⭐ 移除 overflow-y: auto，由父容器 .lyrics-text-section 处理滚动 */
+  /* ⭐ 移除 padding-right，由父容器统一管理 padding */
 }
 
-/* 自定义滚动条 */
-.lyrics-scroll-area::-webkit-scrollbar {
-  width: 6px;
-}
-
-.lyrics-scroll-area::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.lyrics-scroll-area::-webkit-scrollbar-thumb {
-  background: #d4d4d4;
-  border-radius: 3px;
-}
-
-.lyrics-scroll-area::-webkit-scrollbar-thumb:hover {
-  background: #a3a3a3;
-}
+/* ⭐ 移除 .lyrics-scroll-area 的滚动条样式，改为 .lyrics-text-section 的滚动条 */
 
 /* 歌词状态（Loading / Error / None）*/
 .lyrics-state {
@@ -203,11 +216,31 @@
 
 /* 歌词行 */
 .lyrics-line {
-  padding: 6px 0;
-  color: #525252;
-  transition: color 200ms ease, opacity 200ms ease;
+  padding: 6px 16px; /* ⭐ 左右增加 16px 空间，防止放大时超出 */
+  color: #a3a3a3; /* ⭐ 非激活行更淡 */
+  transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
   word-wrap: break-word;
   white-space: pre-wrap;
+  opacity: 0.5; /* ⭐ 非激活行半透明 */
+}
+
+/* ⭐ 可点击的歌词行（有 timeMs） */
+.lyrics-line-clickable {
+  cursor: pointer;
+}
+
+.lyrics-line-clickable:hover {
+  opacity: 0.8;
+  color: #737373;
+}
+
+/* ⭐ 激活的歌词行（当前播放） */
+.lyrics-line-active {
+  color: #171717; /* ⭐ 更深的颜色 */
+  font-weight: 600; /* ⭐ 加粗 */
+  font-size: 1.15em; /* ⭐ 稍微放大 */
+  opacity: 1; /* ⭐ 完全不透明 */
+  transform: scale(1.02); /* ⭐ 轻微缩放效果 */
 }
 
 /* 空行（♪ 符号）*/
