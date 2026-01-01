@@ -1,0 +1,117 @@
+.tracklist {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #ffffff;
+}
+
+.tracklist-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #737373;
+}
+
+.tracklist-empty p {
+  margin: 0;
+  font-size: 16px;
+}
+
+.empty-hint {
+  margin-top: 8px !important;
+  font-size: 14px;
+  color: #a3a3a3;
+}
+
+.tracklist-header {
+  display: flex;
+  height: 48px;
+  padding: 0 24px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #737373;
+  background: #fafafa;
+  border-bottom: 1px solid #e5e5e5;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.tracklist-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.track-row {
+  display: flex;
+  height: 56px;
+  padding: 0 24px;
+  align-items: center;
+  border-bottom: 1px solid #f5f5f5;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.track-row:hover {
+  background: #fafafa;
+}
+
+.track-row.active {
+  background: #f5f5f5;
+  border-left: 3px solid #171717;
+}
+
+.col-title {
+  flex: 0 0 35%;
+  font-size: 14px;
+  color: #171717;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.col-artist {
+  flex: 0 0 25%;
+  font-size: 14px;
+  color: #737373;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.col-album {
+  flex: 0 0 30%;
+  font-size: 14px;
+  color: #a3a3a3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.col-duration {
+  flex: 0 0 10%;
+  font-size: 13px;
+  color: #a3a3a3;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 滚动条样式 */
+.tracklist-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.tracklist-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tracklist-body::-webkit-scrollbar-thumb {
+  background: #d4d4d4;
+  border-radius: 4px;
+}
+
+.tracklist-body::-webkit-scrollbar-thumb:hover {
+  background: #a3a3a3;
+}
