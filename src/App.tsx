@@ -23,6 +23,7 @@ declare global {
       getLibraryFolders: () => Promise<string[]>
       addLibraryFolder: (folderPath: string) => Promise<string[]>
       removeLibraryFolder: (folderPath: string) => Promise<string[]>
+      clearCoverCache: (trackId: string) => Promise<boolean>
     }
   }
 }

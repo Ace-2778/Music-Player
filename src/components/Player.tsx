@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { usePlayerStore } from '../store/playerStore'
+import { normalizeCoverSrc } from '../utils/normalizeCoverSrc'
 import './Player.css'
 
 // 格式化时长为 mm:ss
@@ -205,13 +206,16 @@ export function Player() {
       
       {/* 歌曲信息 */}
       <div className="player-info">
-        {currentTrack.pictureBase64 && (
-          <img 
-            src={currentTrack.pictureBase64} 
-            alt="封面" 
-            className="player-cover"
-          />
-        )}
+        {currentTrack.pictureBase64 && (() => {
+          const coverSrc = normalizeCoverSrc(currentTrack.pictureBase64)
+          return coverSrc ? (
+            <img 
+              src={coverSrc} 
+              alt="封面" 
+              className="player-cover"
+            />
+          ) : null
+        })()}
         <div className="player-text">
           <div className="player-title">{currentTrack.title}</div>
           <div className="player-artist">{currentTrack.artist}</div>

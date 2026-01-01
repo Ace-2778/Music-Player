@@ -20,6 +20,7 @@
   - 优先显示音频文件内嵌封面
   - 自动从 iTunes API 搜索在线封面
   - 封面缓存机制，减少网络请求
+  - ⚠️ **搜索精准度有限**：基于歌曲标题和艺术家进行模糊匹配，部分歌曲可能无法找到封面或匹配到错误的专辑封面
 
 ### 📖 在线歌词同步
 - **LRC 格式支持**：精确到毫秒的时间戳同步
@@ -27,6 +28,7 @@
   - 主源：LRCLIB（优先，支持 LRC 格式）
   - 备用源：lyrics.ovh（纯文本）
   - 8秒超时 + 竞态控制，保证响应速度
+  - ⚠️ **搜索精准度有限**：由于依赖第三方 API 和模糊匹配算法，部分歌曲可能无法找到歌词或匹配到错误的歌词
 - **智能歌词显示**：
   - 当前行高亮 + 自动居中滚动
   - 二分查找算法（O(log n)）优化性能
@@ -68,9 +70,19 @@
 - **安全 IPC 通信**：`contextIsolation: true` + `nodeIntegration: false`
 - **Provider 架构**：可扩展的音乐源管理（本地/在线/Mock）
 - **LRC 解析器**：支持多时间戳、毫秒精度解析
+- **智能搜索管线**：
+  - 统一的 SearchPlan 架构（normalize → plan → scoring → cache）
+  - 多维度评分系统（标题、艺术家、专辑、时长）
+  - Token Overlap (40%) + Levenshtein 编辑距离 (60%) 混合算法
+- **封面搜索优化**：
+  - iTunes API 专辑优先策略（entity=album → entity=song）
+  - albumTracks 步骤：专辑曲目列表精确匹配
+  - 关键词清洗与规范化
+  - 封面 URL 质量提升（600x600）
 - **缓存策略**：
   - 专辑封面 URL 缓存（electron-store）
   - 歌词结果缓存（内存缓存 + 竞态控制）
+  - 失败缓存（TTL 10分钟，避免重复请求）
 
 ## 🚀 快速开始
 
@@ -116,9 +128,13 @@ Music-Player/
 │   │   ├── LocalProvider.ts
 │   │   └── index.ts
 │   ├── utils/               # 工具函数
-│   │   ├── lyricsService.ts # 在线歌词获取
-│   │   ├── lrcParser.ts     # LRC 格式解析
-│   │   └── coverSearch.ts   # 封面搜索
+│   │   ├── lyricsService.ts    # 在线歌词获取
+│   │   ├── lrcParser.ts        # LRC 格式解析
+│   │   ├── coverSearch.ts      # 封面搜索（iTunes API）
+│   │   ├── scoringSystem.ts    # 多维度评分系统
+│   │   ├── normalizeTrackInfo.ts # 曲目信息标准化
+│   │   ├── searchPlan.ts       # 搜索计划生成与执行
+│   │   └── normalizeCoverSrc.ts # 封面 URL 标准化
 │   └── types/               # TypeScript 类型定义
 │       └── lyrics.ts
 ├── dist/                    # 构建输出（前端）
@@ -175,6 +191,58 @@ Music-Player/
 
 ## 🎯 核心功能实现
 
+### 多维度评分系统
+实现智能的模糊匹配算法，用于从多个候选结果中选择最佳匹配项：
+
+```typescript
+// 评分维度与权重
+const weights = {
+  title: 0.5,    // 标题权重 50%
+  artist: 0.3,   // 艺术家权重 30%
+  album: 0.1,    // 专辑权重 10%
+  duration: 0.1  // 时长权重 10%
+}
+
+// 混合相似度算法
+function stringSimilarity(str1: string, str2: string): number {
+  const tokenOverlap = calculateTokenOverlap(str1, str2)  // 40%
+  const levenshtein = 1 - (levenshteinDistance(str1, str2) / maxLength)  // 60%
+  return tokenOverlap * 0.4 + levenshtein * 0.6
+}
+```
+
+**特点**：
+- Token 分词匹配（处理顺序差异）
+- Levenshtein 编辑距离（处理拼写差异）
+- 时长容差 ±10 秒匹配
+- 评分阈值 50-55 分（过滤低质量结果）
+
+### 封面搜索策略
+iTunes API 专辑优先 + 单曲兜底的多步骤搜索：
+
+```typescript
+// 搜索步骤
+1. iTunes 专辑搜索 (entity=album)
+   → 专辑评分 > 55 分
+   → 执行 albumTracks 步骤（曲目列表匹配）
+   
+2. albumTracks 精确匹配
+   → 在专辑曲目中查找当前歌曲
+   → 评分 > 50 分即采用专辑封面
+   
+3. iTunes 单曲兜底 (entity=song)
+   → 评分 > 50 分
+   
+4. 失败缓存 10 分钟
+   → 避免重复请求无效资源
+```
+
+**优化点**：
+- 关键词清洗（移除 feat.、remaster 等干扰词）
+- 封面 URL 正则提升（100x100 → 600x600）
+- 超时控制 8 秒
+- 失败缓存机制
+
 ### 歌词同步算法
 使用二分查找在 O(log n) 时间复杂度内找到当前播放时间对应的歌词行：
 
@@ -229,7 +297,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 - [ ] 音乐标签编辑
 - [ ] 均衡器支持
 - [ ] 主题自定义
-- [ ] macOS/Linux 平台测试和优化
+- [ ] macOS/Lin
+- [ ] 优化歌词搜索算法，提升匹配精准度
+- [ ] 优化封面搜索算法，提升匹配精准度
+- [ ] 支持手动选择/上传封面和歌词ux 平台测试和优化
 - [ ] 更多在线音乐源支持
 
 ## 📄 开源协议

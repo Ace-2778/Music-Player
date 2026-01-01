@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePlayerStore } from '../store/playerStore'
-import { fetchCoverFromInternet } from '../utils/coverSearch'
-import { fetchLyrics } from '../utils/lyricsService'
+import { fetchCoverForTrack } from '../utils/coverSearch'
+import { fetchLyricsForTrack } from '../utils/lyricsService'
+import { normalizeCoverSrc } from '../utils/normalizeCoverSrc'
 import { LyricsResult, LyricsLine } from '../types/lyrics'
 import './LyricsOverlay.css'
 
@@ -39,7 +40,7 @@ export function LyricsOverlay() {
   const lyricsBodyRef = useRef<HTMLDivElement>(null) // ⭐ 歌词滚动容器引用
   const contextMenuRef = useRef<HTMLDivElement>(null) // ⭐ 右键菜单引用
 
-  // 加载封面
+  // 加载封面（使用智能搜索）
   useEffect(() => {
     if (!currentTrack) {
       setCoverUrl(null)
@@ -48,13 +49,15 @@ export function LyricsOverlay() {
 
     // 优先使用本地 metadata 封面
     if (currentTrack.pictureBase64) {
-      setCoverUrl(`data:image/jpeg;base64,${currentTrack.pictureBase64}`)
+      const url = normalizeCoverSrc(currentTrack.pictureBase64)
+      setCoverUrl(url)
       return
     }
 
     // 使用缓存的 coverUrl
     if (currentTrack.coverUrl) {
-      setCoverUrl(currentTrack.coverUrl)
+      const url = normalizeCoverSrc(currentTrack.coverUrl)
+      setCoverUrl(url)
       return
     }
 
@@ -63,18 +66,17 @@ export function LyricsOverlay() {
       try {
         const cachedUrl = await window.electronAPI.getCoverUrl(currentTrack.id)
         if (cachedUrl) {
-          setCoverUrl(cachedUrl)
+          const url = normalizeCoverSrc(cachedUrl)
+          setCoverUrl(url)
           return
         }
 
-        // 从网上搜索
-        const onlineCover = await fetchCoverFromInternet(
-          currentTrack.title,
-          currentTrack.artist
-        )
+        // 🔥 使用新的智能封面搜索（集成标准化和搜索计划）
+        const onlineCover = await fetchCoverForTrack(currentTrack)
         
         if (onlineCover) {
-          setCoverUrl(onlineCover)
+          const url = normalizeCoverSrc(onlineCover)
+          setCoverUrl(url)
           await window.electronAPI.saveCoverUrl(currentTrack.id, onlineCover)
         } else {
           setCoverUrl(null)
@@ -88,7 +90,7 @@ export function LyricsOverlay() {
     loadCover()
   }, [currentTrack])
 
-  // ⭐ 加载歌词（当 Overlay 打开且歌曲变化时）
+  // ⭐ 加载歌词（当 Overlay 打开且歌曲变化时）- 使用智能搜索
   useEffect(() => {
     if (!showLyricsOverlay || !currentTrack) {
       setLyrics(null)
@@ -100,20 +102,8 @@ export function LyricsOverlay() {
       setLyrics(null)
 
       try {
-        console.log('🎵 [LyricsOverlay] 开始加载歌词:', {
-          title: currentTrack.title,
-          artist: currentTrack.artist
-        })
-
-        const result = await fetchLyrics(currentTrack.artist, currentTrack.title)
-        
-        console.log('✅ [LyricsOverlay] 歌词加载完成:', {
-          type: result.type,
-          source: result.source,
-          hasTimestamps: result.hasTimestamps,
-          linesCount: result.lines?.length || 0
-        })
-
+        // 🔥 使用新的智能搜索（集成标准化和搜索计划）
+        const result = await fetchLyricsForTrack(currentTrack)
         setLyrics(result)
       } catch (error) {
         console.error('❌ [LyricsOverlay] 加载歌词失败:', error)
@@ -363,7 +353,11 @@ export function LyricsOverlay() {
             <div className="lyrics-cover-section">
               <div className="lyrics-cover">
                 {coverUrl ? (
-                  <img src={coverUrl} alt="" className="lyrics-cover-image" />
+                  <img 
+                    src={coverUrl} 
+                    alt="" 
+                    className="lyrics-cover-image"
+                  />
                 ) : (
                   <div className="lyrics-cover-placeholder">
                     <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">

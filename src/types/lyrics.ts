@@ -3,7 +3,7 @@
  */
 export interface LyricsResult {
   type: 'lrc' | 'plain' | 'none'
-  source: 'lrclib' | 'lyrics.ovh' | 'cache'
+  source: 'lrclib' | 'lyrics.ovh' | 'cache' | 'none' | 'error'
   raw?: string // 原始歌词文本
   lines?: LyricsLine[]
   hasTimestamps: boolean // lrc=true, plain/none=false

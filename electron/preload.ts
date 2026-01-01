@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ⭐ 新增：封面缓存 API
   saveCoverUrl: (trackId: string, coverUrl: string) => ipcRenderer.invoke('save-cover-url', trackId, coverUrl) as Promise<boolean>,
   getCoverUrl: (trackId: string) => ipcRenderer.invoke('get-cover-url', trackId) as Promise<string | null>,
+  clearCoverCache: (trackId: string) => ipcRenderer.invoke('clear-cover-cache', trackId) as Promise<boolean>,
   // ⭐ 新增：歌词选项 API
   getLyricsOptions: () => ipcRenderer.invoke('get-lyrics-options') as Promise<any>,
   saveLyricsOptions: (options: any) => ipcRenderer.invoke('save-lyrics-options', options) as Promise<any>,

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePlayerStore } from '../store/playerStore'
-import { fetchCoverFromInternet } from '../utils/coverSearch'
+import { fetchCoverForTrack } from '../utils/coverSearch'
+import { normalizeCoverSrc } from '../utils/normalizeCoverSrc'
 import './PlayerBar.css'
 
 // 格式化时长为 mm:ss
@@ -155,15 +156,15 @@ export function PlayerBar() {
 
     // 优先使用本地 metadata 封面
     if (currentTrack.pictureBase64) {
-      console.log('🖼️ [PlayerBar] 使用本地封面')
-      setCoverUrl(`data:image/jpeg;base64,${currentTrack.pictureBase64}`)
+      const url = normalizeCoverSrc(currentTrack.pictureBase64)
+      setCoverUrl(url)
       return
     }
 
     // 如果已有缓存的 coverUrl
     if (currentTrack.coverUrl) {
-      console.log('🖼️ [PlayerBar] 使用缓存封面:', currentTrack.coverUrl)
-      setCoverUrl(currentTrack.coverUrl)
+      const url = normalizeCoverSrc(currentTrack.coverUrl)
+      setCoverUrl(url)
       return
     }
 
@@ -172,29 +173,24 @@ export function PlayerBar() {
       try {
         const cachedUrl = await window.electronAPI.getCoverUrl(currentTrack.id)
         if (cachedUrl) {
-          console.log('🖼️ [PlayerBar] 从存储加载封面:', cachedUrl)
-          setCoverUrl(cachedUrl)
+          const url = normalizeCoverSrc(cachedUrl)
+          setCoverUrl(url)
           return
         }
 
         // 如果都没有，从网上搜索
-        console.log('🔍 [PlayerBar] 开始搜索在线封面')
         setCoverLoading(true)
         
-        const onlineCover = await fetchCoverFromInternet(
-          currentTrack.title, 
-          currentTrack.artist
-        )
+        // 🔥 使用新的智能封面搜索（集成标准化和搜索计划）
+        const onlineCover = await fetchCoverForTrack(currentTrack)
         
         if (onlineCover) {
-          console.log('✅ [PlayerBar] 找到在线封面:', onlineCover)
-          setCoverUrl(onlineCover)
+          const url = normalizeCoverSrc(onlineCover)
+          setCoverUrl(url)
           
           // ⭐ 保存到持久化存储
           await window.electronAPI.saveCoverUrl(currentTrack.id, onlineCover)
-          console.log('💾 [PlayerBar] 封面已缓存')
         } else {
-          console.log('⚠️ [PlayerBar] 未找到封面，使用占位')
           setCoverUrl(null)
         }
       } catch (error) {
@@ -235,7 +231,18 @@ export function PlayerBar() {
             title={showLyricsOverlay ? "关闭歌词" : "查看歌词"}
           >
             {coverUrl ? (
-              <img src={coverUrl} alt="" className="cover-image" />
+              <img 
+                src={coverUrl} 
+                alt="" 
+                className="cover-image"
+              />
+            ) : coverLoading ? (
+              <div className="cover-placeholder">
+                <svg className="cover-spinner" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" opacity="0.25"/>
+                  <path d="M12 2a10 10 0 0 1 10 10" opacity="0.75"/>
+                </svg>
+              </div>
             ) : (
               <div className="cover-placeholder">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">

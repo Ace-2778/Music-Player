@@ -162,7 +162,33 @@ ipcMain.handle('scan-music-folder', async (event, folderPath: string) => {
       let pictureBase64: string | undefined
       if (metadata.common.picture && metadata.common.picture.length > 0) {
         const picture = metadata.common.picture[0]
-        pictureBase64 = `data:${picture.format};base64,${picture.data.toString('base64')}`
+        
+        try {
+          // 🔧 统一转 Buffer
+          const buf = Buffer.isBuffer(picture.data) 
+            ? picture.data 
+            : Buffer.from(picture.data)
+          
+          // 转 base64
+          const b64 = buf.toString('base64')
+          
+          // 校验 base64 有效性
+          const isLongEnough = b64.length > 500
+          const isValidBase64 = /^[A-Za-z0-9+/=]+$/.test(b64)
+          const hasNoComma = !b64.includes(',')
+          
+          if (!isLongEnough || !isValidBase64 || !hasNoComma) {
+            // base64 无效，跳过本地封面，让系统 fallback 到 iTunes
+            pictureBase64 = undefined
+          } else {
+            // 拼接 dataURL
+            const mime = picture.format || 'image/jpeg'
+            pictureBase64 = `data:${mime};base64,${b64}`
+          }
+        } catch (error) {
+          console.error('❌ [Local Cover] 提取封面失败:', error)
+          pictureBase64 = undefined
+        }
       }
       
       // 构建 Track，使用 fallback 值
@@ -249,6 +275,15 @@ ipcMain.handle('get-cover-url', (event, trackId: string) => {
   const coverUrl = trackCovers[trackId] || null
   console.log('🖼️ [IPC] get-cover-url:', { trackId, coverUrl })
   return coverUrl
+})
+
+// ⭐ 新增：IPC Handler - 清除失败的封面缓存
+ipcMain.handle('clear-cover-cache', (event, trackId: string) => {
+  const trackCovers = store.get('trackCovers', {}) as Record<string, string>
+  delete trackCovers[trackId]
+  store.set('trackCovers', trackCovers)
+  console.log('🗑️ [IPC] clear-cover-cache:', { trackId })
+  return true
 })
 
 // ⭐ 新增：IPC Handler - 获取歌词显示选项
