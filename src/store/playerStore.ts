@@ -12,6 +12,14 @@ export interface Track {
   provider: string // 标识来源
 }
 
+// ⭐ 歌词显示选项（用户自定义配置）
+export interface LyricsDisplayOptions {
+  align: 'left' | 'center' | 'right'  // 对齐方式
+  fontFamily: string                   // 字体
+  fontSize: number                     // 字号（px）
+  lineHeight: number                   // 行高（倍数）
+}
+
 interface PlayerState {
   // 播放列表
   playlist: Track[]
@@ -26,6 +34,12 @@ interface PlayerState {
   
   // 错误信息 ⭐ 新增：用于显示播放错误
   errorMessage: string | null
+  
+  // ⭐ 歌词 Overlay 状态
+  showLyricsOverlay: boolean
+  
+  // ⭐ 歌词显示选项（用户自定义配置）
+  lyricsOptions: LyricsDisplayOptions
   
   // Audio element
   audioElement: HTMLAudioElement | null
@@ -44,6 +58,8 @@ interface PlayerState {
   setDuration: (duration: number) => void
   setAudioElement: (audio: HTMLAudioElement) => void
   clearError: () => void // ⭐ 新增：清除错误
+  setShowLyricsOverlay: (show: boolean) => void // ⭐ 新增：控制歌词 Overlay
+  setLyricsOptions: (options: Partial<LyricsDisplayOptions>) => void // ⭐ 新增：更新歌词选项
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
@@ -56,6 +72,15 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   volume: 80, // ⭐ 修改：默认 80（0-100 范围）
   audioElement: null,
   errorMessage: null, // ⭐ 新增
+  showLyricsOverlay: false, // ⭐ 新增：歌词 Overlay 默认关闭
+  
+  // ⭐ 歌词显示选项（默认值）
+  lyricsOptions: {
+    align: 'left',                          // 默认左对齐
+    fontFamily: 'system-ui, sans-serif',    // 系统默认字体
+    fontSize: 16,                           // 默认 16px
+    lineHeight: 1.8                         // 默认 1.8 倍行高
+  },
 
   setPlaylist: (tracks) => set({ playlist: tracks }),
 
@@ -277,5 +302,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   
   setAudioElement: (audio) => set({ audioElement: audio }),
   
-  clearError: () => set({ errorMessage: null }) // ⭐ 新增
+  clearError: () => set({ errorMessage: null }), // ⭐ 新增
+  
+  setShowLyricsOverlay: (show) => set({ showLyricsOverlay: show }), // ⭐ 新增：控制歌词 Overlay
+  
+  // ⭐ 新增：更新歌词显示选项（支持部分更新）
+  setLyricsOptions: (options) => set((state) => ({
+    lyricsOptions: { ...state.lyricsOptions, ...options }
+  }))
 }))

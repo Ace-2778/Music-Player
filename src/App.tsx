@@ -3,6 +3,7 @@ import './App.css'
 import { TopBar } from './components/TopBar'
 import { TrackList } from './components/TrackList'
 import { PlayerBar } from './components/PlayerBar'
+import { LyricsOverlay } from './components/LyricsOverlay'
 import { usePlayerStore, Track } from './store/playerStore'
 import { providerManager, LocalProvider } from './providers'
 
@@ -158,6 +159,9 @@ function App() {
       </div>
       
       <PlayerBar />
+      
+      {/* ⭐ 歌词 Overlay */}
+      <LyricsOverlay />
     </div>
   )
 }

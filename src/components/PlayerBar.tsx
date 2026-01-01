@@ -32,7 +32,8 @@ export function PlayerBar() {
     setCurrentTime,
     setDuration,
     setAudioElement,
-    clearError
+    clearError,
+    setShowLyricsOverlay
   } = usePlayerStore()
 
   // ⭐ 初始化 audio element + 加载保存的音量（只执行一次）
@@ -226,8 +227,12 @@ export function PlayerBar() {
         
         {/* 左侧：当前曲目信息 */}
         <div className="playerbar-left">
-          {/* ⭐ 封面 */}
-          <div className="track-cover">
+          {/* ⭐ 封面（可点击打开歌词）*/}
+          <div 
+            className="track-cover" 
+            onClick={() => setShowLyricsOverlay(true)}
+            title="查看歌词"
+          >
             {coverUrl ? (
               <img src={coverUrl} alt="" className="cover-image" />
             ) : (
