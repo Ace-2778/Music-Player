@@ -78,7 +78,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   lyricsOptions: {
     align: 'left',                          // 默认左对齐
     fontFamily: 'system-ui, sans-serif',    // 系统默认字体
-    fontSize: 16,                           // 默认 16px
+    fontSize: 20,                           // ⭐ 默认 20px（调大以提升可读性）
     lineHeight: 1.8                         // 默认 1.8 倍行高
   },
 
@@ -306,8 +306,15 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   
   setShowLyricsOverlay: (show) => set({ showLyricsOverlay: show }), // ⭐ 新增：控制歌词 Overlay
   
-  // ⭐ 新增：更新歌词显示选项（支持部分更新）
-  setLyricsOptions: (options) => set((state) => ({
-    lyricsOptions: { ...state.lyricsOptions, ...options }
-  }))
+  // ⭐ 更新：歌词显示选项（支持部分更新 + 持久化）
+  setLyricsOptions: (options) => {
+    const currentOptions = get().lyricsOptions
+    const newOptions = { ...currentOptions, ...options }
+    set({ lyricsOptions: newOptions })
+    
+    // ⭐ 持久化到 electron-store
+    window.electronAPI.saveLyricsOptions(options).catch(err => {
+      console.error('❌ [setLyricsOptions] 保存歌词选项失败:', err)
+    })
+  }
 }))

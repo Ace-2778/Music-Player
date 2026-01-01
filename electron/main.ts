@@ -14,7 +14,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const store = new Store({
   defaults: {
     volume: 80, // 默认音量 80
-    trackCovers: {} // ⭐ 存储 trackId -> coverUrl 映射
+    trackCovers: {}, // ⭐ 存储 trackId -> coverUrl 映射
+    lyricsOptions: { // ⭐ 歌词显示选项
+      align: 'left',
+      fontFamily: 'system-ui, sans-serif',
+      fontSize: 20,
+      lineHeight: 1.8
+    }
   }
 })
 
@@ -53,10 +59,12 @@ let win: BrowserWindow | null
 function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
+    title: 'Music_Player', // ⭐ 设置窗口标题
     width: 1100,
     height: 700,
     minWidth: 1100,
     minHeight: 700,
+    autoHideMenuBar: true, // ⭐ 隐藏菜单栏（File, Edit 等）
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       nodeIntegration: false,
@@ -240,6 +248,27 @@ ipcMain.handle('get-cover-url', (event, trackId: string) => {
   const coverUrl = trackCovers[trackId] || null
   console.log('🖼️ [IPC] get-cover-url:', { trackId, coverUrl })
   return coverUrl
+})
+
+// ⭐ 新增：IPC Handler - 获取歌词显示选项
+ipcMain.handle('get-lyrics-options', () => {
+  const lyricsOptions = store.get('lyricsOptions', {
+    align: 'left',
+    fontFamily: 'system-ui, sans-serif',
+    fontSize: 20,
+    lineHeight: 1.8
+  })
+  console.log('🎵 [IPC] get-lyrics-options:', lyricsOptions)
+  return lyricsOptions
+})
+
+// ⭐ 新增：IPC Handler - 保存歌词显示选项
+ipcMain.handle('save-lyrics-options', (event, options: any) => {
+  const currentOptions = store.get('lyricsOptions', {}) as any
+  const newOptions = { ...currentOptions, ...options }
+  store.set('lyricsOptions', newOptions)
+  console.log('🎵 [IPC] save-lyrics-options:', newOptions)
+  return newOptions
 })
 
 app.whenReady().then(createWindow)

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 import { TopBar } from './components/TopBar'
 import { TrackList } from './components/TrackList'
@@ -18,6 +18,8 @@ declare global {
       setVolume: (volume: number) => Promise<number>
       saveCoverUrl: (trackId: string, coverUrl: string) => Promise<boolean>
       getCoverUrl: (trackId: string) => Promise<string | null>
+      getLyricsOptions: () => Promise<any>
+      saveLyricsOptions: (options: any) => Promise<any>
     }
   }
 }
@@ -39,7 +41,21 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<'none' | 'title' | 'artist'>('none')
   
-  const { setPlaylist, playTrack, currentTrack, playlist } = usePlayerStore()
+  const { setPlaylist, playTrack, currentTrack, playlist, setLyricsOptions } = usePlayerStore()
+
+  // ⭐ 初始化：从 electron-store 读取持久化设置
+  useEffect(() => {
+    const initSettings = async () => {
+      try {
+        const savedLyricsOptions = await window.electronAPI.getLyricsOptions()
+        setLyricsOptions(savedLyricsOptions)
+        console.log('✅ [初始化] 加载歌词选项:', savedLyricsOptions)
+      } catch (error) {
+        console.error('❌ [初始化] 加载歌词选项失败:', error)
+      }
+    }
+    initSettings()
+  }, [setLyricsOptions])
 
   const handleSelectFolder = async () => {
     setLoading(true)

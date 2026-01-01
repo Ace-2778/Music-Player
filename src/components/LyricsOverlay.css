@@ -16,8 +16,8 @@
 /* 歌词内容容器 */
 .lyrics-content {
   position: relative;
-  width: 80%;
-  max-width: 1200px; /* ⭐ 缩小整体宽度，让歌词更紧凑 */
+  width: 90%;
+  max-width: 1100px; /* ⭐ 缩小整体宽度，让歌词更紧凑 */
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -214,6 +214,12 @@
   gap: 0;
 }
 
+/* ⭐ 歌词 spacer：用于微调聚焦位置的透明空白区 */
+.lyrics-spacer {
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
 /* 歌词行 */
 .lyrics-line {
   padding: 6px 16px; /* ⭐ 左右增加 16px 空间，防止放大时超出 */
@@ -263,4 +269,74 @@
 .lyrics-source,
 .lyrics-type {
   opacity: 0.6;
+}
+/* ⭐ 右键菜单样式 */
+.lyrics-context-menu {
+  min-width: 180px;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  padding: 4px;
+  z-index: 10000;
+  animation: contextMenuFadeIn 150ms ease-out;
+}
+
+@keyframes contextMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.lyrics-context-menu-header {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #737373;
+  border-bottom: 1px solid #e5e5e5;
+  margin-bottom: 4px;
+}
+
+.lyrics-context-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: #171717;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 120ms ease;
+  text-align: left;
+}
+
+.lyrics-context-menu-item:hover:not(:disabled) {
+  background: #f5f5f5;
+}
+
+.lyrics-context-menu-item:active:not(:disabled) {
+  background: #e5e5e5;
+}
+
+.lyrics-context-menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.lyrics-context-menu-shortcut {
+  font-size: 12px;
+  color: #a3a3a3;
+  margin-left: 16px;
+}
+
+.lyrics-context-menu-divider {
+  height: 1px;
+  background: #e5e5e5;
+  margin: 4px 0;
 }

@@ -6,19 +6,38 @@ import { fetchLyrics } from '../utils/lyricsService'
 import { LyricsResult, LyricsLine } from '../types/lyrics'
 import './LyricsOverlay.css'
 
+// ⭐ 配置：歌词聚焦位置微调（上下 spacer 占容器高度的比例）
+// 范围：0.05~0.10，值越大歌词越往上偏移
+const SPACER_RATIO = 0.10 // 默认 8%
+
+// ⭐ 字号调整配置
+const FONT_SIZE_MIN = 12
+const FONT_SIZE_MAX = 28
+const FONT_SIZE_STEP = 2
+const FONT_SIZE_DEFAULT = 20
+
+interface ContextMenuPosition {
+  x: number
+  y: number
+}
+
 export function LyricsOverlay() {
   const { 
     showLyricsOverlay, 
     setShowLyricsOverlay, 
     currentTrack,
     lyricsOptions,  // ⭐ 读取歌词显示选项
+    setLyricsOptions, // ⭐ 更新歌词选项
     audioElement    // ⭐ 获取 audio 元素用于时间追踪
   } = usePlayerStore()
   const [coverUrl, setCoverUrl] = useState<string | null>(null)
   const [lyrics, setLyrics] = useState<LyricsResult | null>(null)
   const [lyricsLoading, setLyricsLoading] = useState(false)
   const [currentTimeMs, setCurrentTimeMs] = useState(0) // ⭐ 当前播放时间（毫秒）
+  const [spacerHeight, setSpacerHeight] = useState(0) // ⭐ 动态 spacer 高度
+  const [contextMenu, setContextMenu] = useState<ContextMenuPosition | null>(null) // ⭐ 右键菜单位置
   const lyricsBodyRef = useRef<HTMLDivElement>(null) // ⭐ 歌词滚动容器引用
+  const contextMenuRef = useRef<HTMLDivElement>(null) // ⭐ 右键菜单引用
 
   // 加载封面
   useEffect(() => {
@@ -185,17 +204,117 @@ export function LyricsOverlay() {
     }
   }
 
+  // ⭐ 右键菜单处理
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    
+    // 计算菜单位置，考虑边界
+    const menuWidth = 180
+    const menuHeight = 120
+    let x = e.clientX
+    let y = e.clientY
+    
+    // 边界检测：右边界
+    if (x + menuWidth > window.innerWidth) {
+      x = window.innerWidth - menuWidth - 10
+    }
+    
+    // 边界检测：下边界
+    if (y + menuHeight > window.innerHeight) {
+      y = window.innerHeight - menuHeight - 10
+    }
+    
+    setContextMenu({ x, y })
+  }
+
+  // ⭐ 字号调整函数
+  const increaseFontSize = () => {
+    const newSize = Math.min(lyricsOptions.fontSize + FONT_SIZE_STEP, FONT_SIZE_MAX)
+    setLyricsOptions({ fontSize: newSize })
+  }
+
+  const decreaseFontSize = () => {
+    const newSize = Math.max(lyricsOptions.fontSize - FONT_SIZE_STEP, FONT_SIZE_MIN)
+    setLyricsOptions({ fontSize: newSize })
+  }
+
+  const resetFontSize = () => {
+    setLyricsOptions({ fontSize: FONT_SIZE_DEFAULT })
+  }
+
+  // ⭐ 关闭右键菜单
+  useEffect(() => {
+    if (!contextMenu) return
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenu(null)
+      }
+    }
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setContextMenu(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [contextMenu])
+
+  // ⭐ 监听容器尺寸变化，动态更新 spacer 高度
+  useEffect(() => {
+    if (!lyricsBodyRef.current) return
+
+    const updateSpacerHeight = () => {
+      if (lyricsBodyRef.current) {
+        const containerHeight = lyricsBodyRef.current.clientHeight
+        setSpacerHeight(containerHeight * SPACER_RATIO)
+      }
+    }
+
+    // 初始计算
+    updateSpacerHeight()
+
+    // 监听尺寸变化
+    const resizeObserver = new ResizeObserver(updateSpacerHeight)
+    resizeObserver.observe(lyricsBodyRef.current)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [lyricsBodyRef.current, showLyricsOverlay])
+
   // ESC 关闭
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && showLyricsOverlay) {
         setShowLyricsOverlay(false)
       }
+      
+      // ⭐ 快捷键：字号调整（仅在歌词页打开时生效）
+      if (showLyricsOverlay && e.ctrlKey) {
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault()
+          increaseFontSize()
+        } else if (e.key === '-' || e.key === '_') {
+          e.preventDefault()
+          decreaseFontSize()
+        } else if (e.key === '0') {
+          e.preventDefault()
+          resetFontSize()
+        }
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showLyricsOverlay, setShowLyricsOverlay])
+  }, [showLyricsOverlay, setShowLyricsOverlay, lyricsOptions.fontSize, setLyricsOptions])
 
   if (!showLyricsOverlay) {
     return null
@@ -268,6 +387,7 @@ export function LyricsOverlay() {
               <div
                 ref={lyricsBodyRef}
                 className="lyrics-body-scroll"
+                onContextMenu={handleContextMenu}
                 style={{
                   textAlign: lyricsOptions.align,
                   fontFamily: lyricsOptions.fontFamily,
@@ -301,6 +421,15 @@ export function LyricsOverlay() {
                 {/* Success 状态：显示歌词 */}
                 {!lyricsLoading && lyrics && lyrics.type !== 'none' && lyrics.lines && (
                   <div className="lyrics-lines">
+                    {/* ⭐ 顶部 spacer：用于微调聚焦位置 */}
+                    {spacerHeight > 0 && (
+                      <div 
+                        className="lyrics-spacer" 
+                        style={{ height: `${spacerHeight}px` }}
+                        aria-hidden="true"
+                      />
+                    )}
+                    
                     {lyrics.lines.map((line, index) => {
                       const isActive = index === activeIndex
                       const hasTimeMs = line.timeMs !== undefined
@@ -321,6 +450,16 @@ export function LyricsOverlay() {
                         </div>
                       )
                     })}
+                    
+                    {/* ⭐ 底部 spacer：用于微调聚焦位置 */}
+                    {spacerHeight > 0 && (
+                      <div 
+                        className="lyrics-spacer" 
+                        style={{ height: `${spacerHeight}px` }}
+                        aria-hidden="true"
+                      />
+                    )}
+                    
                     <div className="lyrics-meta">
                       <span className="lyrics-source">
                         {lyrics.source === 'cache' ? '💾 Cached' : `🌐 ${lyrics.source}`}
@@ -333,6 +472,56 @@ export function LyricsOverlay() {
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ⭐ 右键菜单 */}
+        {contextMenu && (
+          <div
+            ref={contextMenuRef}
+            className="lyrics-context-menu"
+            style={{
+              position: 'fixed',
+              left: `${contextMenu.x}px`,
+              top: `${contextMenu.y}px`
+            }}
+          >
+            <div className="lyrics-context-menu-header">
+              字号：{lyricsOptions.fontSize}px
+            </div>
+            <button
+              className="lyrics-context-menu-item"
+              onClick={() => {
+                increaseFontSize()
+                setContextMenu(null)
+              }}
+              disabled={lyricsOptions.fontSize >= FONT_SIZE_MAX}
+            >
+              <span>字体变大</span>
+              <span className="lyrics-context-menu-shortcut">Ctrl+Plus</span>
+            </button>
+            <button
+              className="lyrics-context-menu-item"
+              onClick={() => {
+                decreaseFontSize()
+                setContextMenu(null)
+              }}
+              disabled={lyricsOptions.fontSize <= FONT_SIZE_MIN}
+            >
+              <span>字体变小</span>
+              <span className="lyrics-context-menu-shortcut">Ctrl+Minus</span>
+            </button>
+            <div className="lyrics-context-menu-divider" />
+            <button
+              className="lyrics-context-menu-item"
+              onClick={() => {
+                resetFontSize()
+                setContextMenu(null)
+              }}
+            >
+              <span>重置字号</span>
+              <span className="lyrics-context-menu-shortcut">Ctrl+0</span>
+            </button>
           </div>
         )}
       </motion.div>
