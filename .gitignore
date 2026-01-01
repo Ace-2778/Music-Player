@@ -10,7 +10,16 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dist-electron
 *.local
+
+# Electron build output
+release
+out
+build
+
+# Electron-builder cache
+.electron-builder-cache
 
 # Editor directories and files
 .vscode/*

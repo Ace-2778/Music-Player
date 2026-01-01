@@ -25,5 +25,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCoverUrl: (trackId: string) => ipcRenderer.invoke('get-cover-url', trackId) as Promise<string | null>,
   // ⭐ 新增：歌词选项 API
   getLyricsOptions: () => ipcRenderer.invoke('get-lyrics-options') as Promise<any>,
-  saveLyricsOptions: (options: any) => ipcRenderer.invoke('save-lyrics-options', options) as Promise<any>
+  saveLyricsOptions: (options: any) => ipcRenderer.invoke('save-lyrics-options', options) as Promise<any>,
+  // ⭐ 新增：曲库文件夹 API
+  getLibraryFolders: () => ipcRenderer.invoke('get-library-folders') as Promise<string[]>,
+  addLibraryFolder: (folderPath: string) => ipcRenderer.invoke('add-library-folder', folderPath) as Promise<string[]>,
+  removeLibraryFolder: (folderPath: string) => ipcRenderer.invoke('remove-library-folder', folderPath) as Promise<string[]>
 })

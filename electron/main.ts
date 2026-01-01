@@ -20,7 +20,8 @@ const store = new Store({
       fontFamily: 'system-ui, sans-serif',
       fontSize: 20,
       lineHeight: 1.8
-    }
+    },
+    libraryFolders: [] // ⭐ 导入的音乐文件夹路径列表
   }
 })
 
@@ -269,6 +270,38 @@ ipcMain.handle('save-lyrics-options', (event, options: any) => {
   store.set('lyricsOptions', newOptions)
   console.log('🎵 [IPC] save-lyrics-options:', newOptions)
   return newOptions
+})
+
+// ⭐ 新增：IPC Handler - 获取导入的文件夹列表
+ipcMain.handle('get-library-folders', () => {
+  const folders = store.get('libraryFolders', []) as string[]
+  console.log('📁 [IPC] get-library-folders:', folders)
+  return folders
+})
+
+// ⭐ 新增：IPC Handler - 添加文件夹到曲库（去重）
+ipcMain.handle('add-library-folder', (event, folderPath: string) => {
+  const folders = store.get('libraryFolders', []) as string[]
+  
+  // 去重：如果已存在则不添加
+  if (!folders.includes(folderPath)) {
+    folders.push(folderPath)
+    store.set('libraryFolders', folders)
+    console.log('📁 [IPC] add-library-folder - 已添加:', folderPath)
+  } else {
+    console.log('📁 [IPC] add-library-folder - 已存在，跳过:', folderPath)
+  }
+  
+  return folders
+})
+
+// ⭐ 新增：IPC Handler - 从曲库移除文件夹
+ipcMain.handle('remove-library-folder', (event, folderPath: string) => {
+  const folders = store.get('libraryFolders', []) as string[]
+  const updatedFolders = folders.filter(f => f !== folderPath)
+  store.set('libraryFolders', updatedFolders)
+  console.log('📁 [IPC] remove-library-folder - 已移除:', folderPath)
+  return updatedFolders
 })
 
 app.whenReady().then(createWindow)

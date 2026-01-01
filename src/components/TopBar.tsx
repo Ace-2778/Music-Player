@@ -1,13 +1,16 @@
 import './TopBar.css'
+import { LibraryManager } from './LibraryManager';
 
 interface TopBarProps {
-  searchQuery: string
-  onSearchChange: (query: string) => void
-  onImportClick: () => void
-  loading: boolean
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+  onImportClick: () => void;
+  loading: boolean;
+  onRescan: (folderPath: string) => void;
+  onRemoveFolder: (folderPath: string) => void;
 }
 
-export function TopBar({ searchQuery, onSearchChange, onImportClick, loading }: TopBarProps) {
+export function TopBar({ searchQuery, onSearchChange, onImportClick, loading, onRescan, onRemoveFolder }: TopBarProps) {
   return (
     <div className="topbar">
       <div className="topbar-left">
@@ -32,6 +35,7 @@ export function TopBar({ searchQuery, onSearchChange, onImportClick, loading }: 
         >
           {loading ? '扫描中...' : '导入文件夹'}
         </button>
+        <LibraryManager onRescan={onRescan} onRemove={onRemoveFolder} />
       </div>
     </div>
   )

@@ -12,5 +12,9 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   getCoverUrl: (trackId) => electron.ipcRenderer.invoke("get-cover-url", trackId),
   // ⭐ 新增：歌词选项 API
   getLyricsOptions: () => electron.ipcRenderer.invoke("get-lyrics-options"),
-  saveLyricsOptions: (options) => electron.ipcRenderer.invoke("save-lyrics-options", options)
+  saveLyricsOptions: (options) => electron.ipcRenderer.invoke("save-lyrics-options", options),
+  // ⭐ 新增：曲库文件夹 API
+  getLibraryFolders: () => electron.ipcRenderer.invoke("get-library-folders"),
+  addLibraryFolder: (folderPath) => electron.ipcRenderer.invoke("add-library-folder", folderPath),
+  removeLibraryFolder: (folderPath) => electron.ipcRenderer.invoke("remove-library-folder", folderPath)
 });
