@@ -30,7 +30,7 @@
 /* 左右布局 - 使用 Grid 实现左窄右宽布局 */
 .lyrics-layout {
   display: grid;
-  grid-template-columns: 2fr 3fr; /* ⭐ 左侧 40% / 右侧 60% */
+  grid-template-columns: 1.5fr 3fr; /* ⭐ 左侧约 33% / 右侧约 67%，大屏下封面不会太靠右 */
   gap: 0; /* ⭐ 移除间距，让两个 box 紧密相连 */
   height: 100%;
   flex: 1; /* ⭐ 占满可用高度，便于内部滚动 */
@@ -38,11 +38,11 @@
   width: 100%;
 }
 
-/* 左侧 Box：封面容器（50% 宽，封面始终居中）*/
+/* 左侧 Box：封面容器（约 33% 宽，封面靠左对齐）*/
 .lyrics-cover-section {
   display: flex;
   align-items: center; /* ⭐ 垂直居中 */
-  justify-content: center; /* ⭐ 水平居中 */
+  justify-content: flex-start; /* ⭐ 水平靠左对齐，大屏下不会太靠右 */
   height: 100%; /* ⭐ 等高 */
   padding: 40px; /* ⭐ 内边距，让封面不贴边 */
   background: #fafafa; /* ⭐ 轻微背景色区分左右区域（可选）*/
