@@ -16,8 +16,8 @@
 /* 歌词内容容器 */
 .lyrics-content {
   position: relative;
-  width: 100%;
-  max-width: 900px; /* ⭐ 缩小整体宽度，让歌词更紧凑 */
+  width: 80%;
+  max-width: 1200px; /* ⭐ 缩小整体宽度，让歌词更紧凑 */
   height: 100%;
   display: flex;
   flex-direction: column;
