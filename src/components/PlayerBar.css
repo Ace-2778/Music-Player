@@ -9,8 +9,8 @@
   display: flex;
   align-items: center;
   padding: 0 24px;
-  gap: 24px;
   z-index: 1000;
+  /* ⭐ relative 定位，为中央绝对定位做准备 */
 }
 
 /* 错误提示 */
@@ -46,13 +46,14 @@
 
 /* 左侧：曲目信息（可伸缩区域）*/
 .playerbar-left {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   display: flex;
   align-items: center;
   gap: 12px;
-  max-width: 400px; /* 限制最大宽度，为中右侧留空间 */
+  max-width: 350px; /* 限制最大宽度，避免遮挡中央区域 */
+  z-index: 1; /* 确保可点击 */
 }
 
 /* ⭐ 封面容器 */
@@ -129,17 +130,25 @@
   white-space: nowrap;
 }
 
-/* 中间：播放控制（固定区域，优先级最高）*/
+/* 中间：播放控制（绝对居中）*/
 .playerbar-center {
-  flex: 0 0 auto;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  /* ⭐ 设置最大宽度，避免在超大窗口下过宽 */
+  max-width: 520px;
+  width: 50vw; /* 响应式宽度 */
+  min-width: 180px; /* 最小宽度保证按钮可见 */
   display: flex;
   justify-content: center;
+  pointer-events: none; /* 容器本身不响应点击 */
 }
 
 .controls {
   display: flex;
   align-items: center;
   gap: 16px;
+  pointer-events: auto; /* 按钮可点击 */
 }
 
 .control-btn,
@@ -175,13 +184,15 @@
   background: #404040;
 }
 
-/* 右侧：进度和音量（固定区域，优先级最高）*/
+/* 右侧：进度和音量（固定区域，靠右对齐）*/
 .playerbar-right {
   flex: 0 0 auto;
-  width: 380px;
+  margin-left: auto; /* ⭐ 自动推到右侧 */
   display: flex;
   align-items: center;
   gap: 24px;
+  max-width: 420px; /* 限制最大宽度，避免遮挡中央区域 */
+  z-index: 1; /* 确保可点击 */
 }
 
 .progress-section {

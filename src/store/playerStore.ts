@@ -151,13 +151,29 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       
       // ⭐ 加载并播放
       console.log('▶️ [playTrack] 开始播放...')
-      await audioElement.play()
+      const playPromise = audioElement.play()
       
-      console.log('✅ [playTrack] 播放成功')
+      // ⭐ 关键修复：正确处理 play() Promise
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch((error: Error) => {
+          if (error.name === 'NotAllowedError' || error.message.includes('interrupted')) {
+            console.warn('⚠️ [playTrack] play() 被中断（正常的竞态条件）:', error.message)
+          } else {
+            console.error('❌ [playTrack] play() 失败:', error)
+            set({ 
+              isPlaying: false,
+              errorMessage: `无法播放 ${track.title}：${error.message}`
+            })
+          }
+        })
+      }
+      
+      console.log('✅ [playTrack] 播放命令已发送')
       set({ isPlaying: true })
       
     } catch (error) {
-      // ⭐ 详细的错误处理
+      // ⭐ 仅处理同步异常（如加载文件失败）
+      // play() Promise 的异常在上面的 .catch() 中处理
       console.error('❌ [playTrack] 播放失败:', error)
       console.error('❌ [playTrack] 错误详情:', {
         name: (error as Error).name,
@@ -171,7 +187,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         errorMessage: errorMsg
       })
       
-      // 不要 alert，只在控制台输出
       console.error('❌ [playTrack] 错误消息:', errorMsg)
     }
   },
@@ -192,11 +207,30 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     
     try {
       console.log('▶️ [play] 恢复播放')
-      await audioElement.play()
+      const playPromise = audioElement.play()
+      
+      // ⭐ 关键修复：正确处理 play() Promise
+      // 防止 "The play() request was interrupted by a call to pause()" 错误
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch((error: Error) => {
+          // 忽略 "NotAllowedError" 和 "被 pause 中断" 的错误
+          // 这些是正常的竞态条件，不需要显示给用户
+          if (error.name === 'NotAllowedError' || error.message.includes('interrupted')) {
+            console.warn('⚠️ [play] play() 被中断（正常的竞态条件）:', error.message)
+          } else {
+            console.error('❌ [play] play() 失败:', error)
+            set({ 
+              isPlaying: false,
+              errorMessage: `播放失败：${error.message}`
+            })
+          }
+        })
+      }
+      
       set({ isPlaying: true, errorMessage: null })
-      console.log('✅ [play] 播放成功')
+      console.log('✅ [play] 播放命令已发送')
     } catch (error) {
-      console.error('❌ [play] 播放失败:', error)
+      console.error('❌ [play] 同步异常:', error)
       set({ 
         isPlaying: false,
         errorMessage: `播放失败：${(error as Error).message}`
@@ -207,8 +241,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   pause: () => {
     const { audioElement } = get()
     if (audioElement) {
+      // ⭐ 关键修复：调用 pause() 时，会自动中止任何正在进行的 play() Promise
+      // 这是正常的浏览器行为，不需要额外处理
       audioElement.pause()
       set({ isPlaying: false })
+      console.log('⏸️ [pause] 暂停')
     }
   },
 
