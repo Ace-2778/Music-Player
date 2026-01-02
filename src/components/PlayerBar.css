@@ -9,7 +9,7 @@
   display: flex;
   align-items: center;
   padding: 0 24px;
-  gap: 32px;
+  gap: 24px;
   z-index: 1000;
 }
 
@@ -44,12 +44,15 @@
   justify-content: center;
 }
 
-/* 左侧：曲目信息 */
+/* 左侧：曲目信息（可伸缩区域）*/
 .playerbar-left {
-  flex: 0 0 320px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 12px;
+  max-width: 400px; /* 限制最大宽度，为中右侧留空间 */
 }
 
 /* ⭐ 封面容器 */
@@ -101,8 +104,9 @@
 }
 
 .track-info {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0; /* ⭐ 允许文字截断 */
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -125,9 +129,9 @@
   white-space: nowrap;
 }
 
-/* 中间：播放控制 */
+/* 中间：播放控制（固定区域，优先级最高）*/
 .playerbar-center {
-  flex: 1;
+  flex: 0 0 auto;
   display: flex;
   justify-content: center;
 }
@@ -171,9 +175,10 @@
   background: #404040;
 }
 
-/* 右侧：进度和音量 */
+/* 右侧：进度和音量（固定区域，优先级最高）*/
 .playerbar-right {
-  flex: 0 0 380px;
+  flex: 0 0 auto;
+  width: 380px;
   display: flex;
   align-items: center;
   gap: 24px;
