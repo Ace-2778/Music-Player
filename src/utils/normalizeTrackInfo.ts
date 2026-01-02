@@ -9,8 +9,12 @@ import { Track } from '../store/playerStore'
  * 标准化后的音轨信息
  */
 export interface NormalizedTrackInfo {
+  displayTitle?: string // ⭐ 原始标题（未清洗，用于 UI 显示）
+  titleCore?: string    // ⭐ 清洗后的核心标题（用于搜索匹配）
+  titleQualifiers?: string[] // ⭐ 括号/版本修饰信息（如 ["Ten Minute Version", "Taylor's Version"]）
+  
   artist?: string       // 标准化的艺术家名
-  title?: string        // 标准化的歌曲名
+  title?: string        // ⭐ 向后兼容：等同于 titleCore
   album?: string        // 标准化的专辑名
   filename?: string     // 原始文件名（不含扩展名）
   duration?: number     // 时长（秒）
@@ -28,11 +32,88 @@ const NOISE_WORDS = new Set([
 ])
 
 /**
+ * ⭐ 高价值版本修饰符（关键词）
+ * 这些词应该被保留并参与搜索，用于区分不同版本
+ */
+const HIGH_VALUE_QUALIFIERS = new Set([
+  // 时长相关
+  'minute', 'min', 'hour', 'extended', 'long',
+  // 版本相关
+  'version', "taylor's", 'taylors', 'deluxe', 'platinum', 'gold',
+  // 特殊版本
+  'from the vault', 'vault', 'bonus', 'demo', 'acoustic',
+  // 现场/混音
+  'live', 'remaster', 'remastered', 'remix', 'radio',
+  // 特殊标记
+  'explicit', 'clean', 'instrumental', 'karaoke',
+  // 特别版
+  'anniversary', 'special', 'limited', 'collectors'
+])
+
+/**
  * 去除括号及其内容的正则
  * 匹配: (xxx), [xxx], 【xxx】, （xxx）
  */
 const BRACKET_REGEX = /[\(\（\[【].*?[\)\）\]】]/g
 
+/**
+ * 提取括号内容（版本信息、修饰符）
+ * 返回: ["Ten Minute Version", "Taylor's Version"] 等
+ */
+function extractQualifiers(str: string): string[] {
+  if (!str) return []
+  
+  const qualifiers: string[] = []
+  const matches = str.matchAll(/[\(\（\[【](.*?)[\)\）\]】]/g)
+  
+  for (const match of matches) {
+    const content = match[1].trim()
+    if (content) {
+      qualifiers.push(content)
+    }
+  }
+  
+  return qualifiers
+}
+/**
+ * ⭐ 提取重要的版本修饰符（用于搜索）
+ * 从 qualifiers 中筛选出包含高价值关键词的修饰符
+ * @param qualifiers - 原始 qualifiers 数组
+ * @returns 清洗后的重要修饰符数组
+ */
+function getImportantQualifiers(qualifiers: string[]): string[] {
+  if (!qualifiers || qualifiers.length === 0) return []
+  
+  const important: string[] = []
+  
+  for (const qualifier of qualifiers) {
+    const lower = qualifier.toLowerCase()
+    
+    // 检查是否包含高价值关键词
+    let hasHighValue = false
+    for (const keyword of HIGH_VALUE_QUALIFIERS) {
+      if (lower.includes(keyword)) {
+        hasHighValue = true
+        break
+      }
+    }
+    
+    if (hasHighValue) {
+      // 清洗修饰符：去除常见无意义词
+      let cleaned = qualifier
+        .replace(/\(|\)|\[|\]/g, '') // 去除括号
+        .replace(/\b(the|from|original|motion|picture|soundtrack)\b/gi, '') // 去除常见填充词
+        .replace(/\s+/g, ' ') // 统一空格
+        .trim()
+      
+      if (cleaned.length > 0) {
+        important.push(cleaned)
+      }
+    }
+  }
+  
+  return important
+}
 /**
  * feat/ft 匹配正则
  * 匹配: feat., feat, ft., ft, featuring
@@ -206,6 +287,12 @@ export function normalizeTrackInfo(track: Track): NormalizedTrackInfo {
   const rawAlbum = track.album || ''
   const rawPath = track.path || ''
   
+  // ⭐ 保存原始标题用于 UI 显示
+  const displayTitle = rawTitle || undefined
+  
+  // ⭐ 提取版本修饰信息（括号内容）
+  const titleQualifiers = extractQualifiers(rawTitle)
+  
   // 从路径提取文件名（不含扩展名）
   const filenameMatch = rawPath.match(/[^/\\]+$/)
   const rawFilename = filenameMatch ? filenameMatch[0] : ''
@@ -214,22 +301,22 @@ export function normalizeTrackInfo(track: Track): NormalizedTrackInfo {
   // 提取 feat 艺术家（用于 keywords）
   const featArtists = extractFeatArtists(rawTitle)
   
-  // 标准化主要字段
+  // 标准化主要字段（清洗后用于搜索）
   let artist = cleanString(rawArtist)
-  let title = cleanString(rawTitle)
+  let titleCore = cleanString(rawTitle)
   const album = cleanString(rawAlbum)
   
   // 🔥 兜底策略：如果 metadata 缺失或不可靠，从文件名猜测
   if ((!artist || artist === 'Various Artists' || artist === 'Unknown Artist') && 
-      (!title || title.startsWith('Unknown Track') || title.startsWith('Track ')) && 
+      (!titleCore || titleCore.startsWith('Unknown Track') || titleCore.startsWith('Track ')) && 
       filename) {
     const parsed = parseFilename(rawFilename)
     artist = parsed.artist || artist || ''
-    title = parsed.title || title || ''
-    console.log(`📝 [标准化] 从文件名解析: ${filename} → artist="${artist}", title="${title}"`)
-  } else if (!title && filename) {
+    titleCore = parsed.title || titleCore || ''
+    console.log(`📝 [标准化] 从文件名解析: ${filename} → artist="${artist}", titleCore="${titleCore}"`)
+  } else if (!titleCore && filename) {
     // 只有 title 缺失
-    title = filename
+    titleCore = filename
   } else if (!artist && filename) {
     // 只有 artist 缺失（尝试从文件名提取）
     const parsed = parseFilename(rawFilename)
@@ -241,7 +328,7 @@ export function normalizeTrackInfo(track: Track): NormalizedTrackInfo {
   // 提取关键词（去重、过滤噪音）
   const keywords = extractKeywords(
     artist,
-    title,
+    titleCore,
     album,
     ...featArtists,
     filename
@@ -249,11 +336,14 @@ export function normalizeTrackInfo(track: Track): NormalizedTrackInfo {
   
   // 构建结果
   const result: NormalizedTrackInfo = {
+    displayTitle,           // ⭐ 原始标题
+    titleCore: titleCore || undefined,  // ⭐ 清洗后的核心标题
+    titleQualifiers,        // ⭐ 版本修饰信息
+    title: titleCore || undefined,      // ⭐ 向后兼容
     artist: artist || undefined,
-    title: title || undefined,
     album: album || undefined,
     filename: filename || undefined,
-    duration: track.duration || undefined,  // 添加时长
+    duration: track.duration || undefined,
     keywords
   }
   
@@ -271,14 +361,27 @@ export function normalizeTrackInfo(track: Track): NormalizedTrackInfo {
  * 生成搜索查询字符串（用于 API 请求）
  * @param normalized - 标准化后的信息
  * @param format - 查询格式
+ * @param includeQualifiers - ⭐ 是否包含重要的 qualifiers，默认 true
  * @returns 查询字符串
  */
 export function buildSearchQuery(
   normalized: NormalizedTrackInfo,
-  format: 'artist-title' | 'keywords' = 'artist-title'
+  format: 'artist-title' | 'keywords' = 'artist-title',
+  includeQualifiers: boolean = true
 ): string {
   if (format === 'artist-title' && normalized.artist && normalized.title) {
-    return `${normalized.artist} ${normalized.title}`
+    let query = `${normalized.artist} ${normalized.title}`
+    
+    // ⭐ 添加重要的 qualifiers
+    if (includeQualifiers && normalized.titleQualifiers && normalized.titleQualifiers.length > 0) {
+      const importantQualifiers = getImportantQualifiers(normalized.titleQualifiers)
+      if (importantQualifiers.length > 0) {
+        // 只添加最重要的前 2 个 qualifiers，避免查询过长
+        query += ' ' + importantQualifiers.slice(0, 2).join(' ')
+      }
+    }
+    
+    return query
   }
   
   // 兜底：使用关键词（前 5 个）
@@ -299,8 +402,26 @@ export const NORMALIZATION_EXAMPLES = [
     expected: {
       artist: 'Taylor Swift',
       title: 'Love Story',
+      displayTitle: 'Love Story (Taylor\'s Version) [feat. Some Artist]',
+      titleQualifiers: ['Taylor\'s Version', 'feat. Some Artist'],
       album: 'Fearless',
       keywords: ['taylor', 'swift', 'love', 'story', 'fearless', 'some', 'artist']
+    }
+  },
+  {
+    input: {
+      artist: 'Taylor Swift',
+      title: 'All Too Well (Ten Minute Version) (Taylor\'s Version) (From The Vault)',
+      album: 'Red (Taylor\'s Version)',
+      path: '/music/All Too Well 10min.mp3'
+    },
+    expected: {
+      artist: 'Taylor Swift',
+      title: 'All Too Well',
+      displayTitle: 'All Too Well (Ten Minute Version) (Taylor\'s Version) (From The Vault)',
+      titleQualifiers: ['Ten Minute Version', 'Taylor\'s Version', 'From The Vault'],
+      album: 'Red',
+      keywords: ['taylor', 'swift', 'all', 'too', 'well', 'red', 'ten', 'minute', 'version', 'vault']
     }
   },
   {

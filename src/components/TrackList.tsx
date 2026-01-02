@@ -42,7 +42,7 @@ export function TrackList({ tracks, currentTrack, onTrackClick }: TrackListProps
             className={`track-row ${currentTrack?.id === track.id ? 'active' : ''}`}
             onClick={() => onTrackClick(track)}
           >
-            <div className="col-title">{track.title}</div>
+            <div className="col-title">{track.displayTitle || track.title}</div>
             <div className="col-artist">{track.artist}</div>
             <div className="col-album">{track.album}</div>
             <div className="col-duration">{formatTime(track.duration)}</div>

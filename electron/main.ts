@@ -30,6 +30,7 @@ interface Track {
   id: string
   path: string
   title: string
+  displayTitle?: string  // ⭐ 原始标题（未清洗，用于 UI 显示）
   artist: string
   album: string
   duration: number
@@ -192,10 +193,12 @@ ipcMain.handle('scan-music-folder', async (event, folderPath: string) => {
       }
       
       // 构建 Track，使用 fallback 值
+      const rawTitle = metadata.common.title || path.basename(filePath, path.extname(filePath))
       const track: Track = {
         id,
         path: filePath,
-        title: metadata.common.title || path.basename(filePath, path.extname(filePath)),
+        title: rawTitle,
+        displayTitle: rawTitle, // ⭐ 保存原始标题用于 UI 显示
         artist: metadata.common.artist || 'Unknown Artist',
         album: metadata.common.album || 'Unknown Album',
         duration: metadata.format.duration || 0,
@@ -208,10 +211,12 @@ ipcMain.handle('scan-music-folder', async (event, folderPath: string) => {
       
       // 即使解析失败，也添加基本信息
       const id = crypto.createHash('md5').update(filePath).digest('hex')
+      const fallbackTitle = path.basename(filePath, path.extname(filePath))
       tracks.push({
         id,
         path: filePath,
-        title: path.basename(filePath, path.extname(filePath)),
+        title: fallbackTitle,
+        displayTitle: fallbackTitle, // ⭐ 保存原始标题
         artist: 'Unknown Artist',
         album: 'Unknown Album',
         duration: 0

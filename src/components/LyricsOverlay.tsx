@@ -374,8 +374,8 @@ export function LyricsOverlay() {
             <div className="lyrics-text-section">
               {/* 歌曲信息（固定顶部） */}
               <div className="lyrics-header">
-                <h1 className="lyrics-title" title={currentTrack.title}>
-                  {currentTrack.title}
+                <h1 className="lyrics-title" title={currentTrack.displayTitle || currentTrack.title}>
+                  {currentTrack.displayTitle || currentTrack.title}
                 </h1>
                 <p className="lyrics-artist" title={currentTrack.artist}>
                   {currentTrack.artist}

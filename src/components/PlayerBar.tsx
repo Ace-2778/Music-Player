@@ -256,8 +256,8 @@ export function PlayerBar() {
           
           {/* ⭐ 歌曲信息 */}
           <div className="track-info">
-            <div className="track-title" title={currentTrack.title}>
-              {currentTrack.title}
+            <div className="track-title" title={currentTrack.displayTitle || currentTrack.title}>
+              {currentTrack.displayTitle || currentTrack.title}
             </div>
             <div className="track-artist" title={currentTrack.artist}>
               {currentTrack.artist}

@@ -3,7 +3,7 @@
  * 用于歌词/封面获取的智能搜索策略
  */
 
-import { NormalizedTrackInfo } from './normalizeTrackInfo'
+import { NormalizedTrackInfo, buildSearchQuery } from './normalizeTrackInfo'
 import { ScoringConfig } from './scoringSystem'
 
 /**
@@ -131,7 +131,12 @@ export function buildSearchPlan(normalizedInfo: NormalizedTrackInfo): SearchPlan
   const plan: SearchPlan = []
   let priority = 1
   
-  const { artist, album, title, keywords, filename } = normalizedInfo
+  const { artist, album, title, keywords, filename, titleQualifiers } = normalizedInfo
+  
+  // ⭐ 生成包含 qualifiers 的完整标题（用于精确搜索）
+  const titleWithQualifiers = title && titleQualifiers && titleQualifiers.length > 0
+    ? buildSearchQuery(normalizedInfo, 'artist-title', true).replace(artist || '', '').trim()
+    : title
   
   // ========== 优先级 A: artist + album + title（专辑曲目搜索）==========
   if (artist && album && title) {
@@ -140,15 +145,30 @@ export function buildSearchPlan(normalizedInfo: NormalizedTrackInfo): SearchPlan
       query: {
         artist,
         album,
-        title
+        title: titleWithQualifiers // ⭐ 使用包含 qualifiers 的标题
       },
-      description: `搜索专辑曲目列表: ${artist} - ${album}，然后匹配 "${title}"`,
+      description: `搜索专辑曲目列表: ${artist} - ${album}，然后匹配 "${titleWithQualifiers}"`,
       priority: priority++
     })
   }
   
   // ========== 优先级 B: artist + title（直接搜索）==========
   if (artist && title) {
+    // B1: 使用包含 qualifiers 的完整查询（优先）
+    if (titleQualifiers && titleQualifiers.length > 0) {
+      const fullQuery = buildSearchQuery(normalizedInfo, 'artist-title', true)
+      plan.push({
+        type: 'trackSearch',
+        query: {
+          artist,
+          title: titleWithQualifiers
+        },
+        description: `精确搜索（含版本信息）: ${fullQuery}`,
+        priority: priority++
+      })
+    }
+    
+    // B2: 使用核心标题（兜底）
     plan.push({
       type: 'trackSearch',
       query: {

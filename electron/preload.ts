@@ -5,6 +5,7 @@ export interface Track {
   id: string
   path: string
   title: string
+  displayTitle?: string  // ⭐ 原始标题（未清洗，用于 UI 显示）
   artist: string
   album: string
   duration: number
