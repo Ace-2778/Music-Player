@@ -471,48 +471,50 @@ export function LyricsOverlay() {
         {contextMenu && (
           <div
             ref={contextMenuRef}
-            className="lyrics-context-menu"
-            style={{
-              position: 'fixed',
-              left: `${contextMenu.x}px`,
-              top: `${contextMenu.y}px`
-            }}
+            className="context-menu"
+            style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
           >
-            <div className="lyrics-context-menu-header">
-              字号：{lyricsOptions.fontSize}px
-            </div>
             <button
-              className="lyrics-context-menu-item"
+              className="context-menu-item"
               onClick={() => {
                 increaseFontSize()
                 setContextMenu(null)
               }}
               disabled={lyricsOptions.fontSize >= FONT_SIZE_MAX}
             >
-              <span>字体变大</span>
-              <span className="lyrics-context-menu-shortcut">Ctrl+Plus</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M8 19h8M8 12h8M8 5h8"/>
+              </svg>
+              字体变大
             </button>
             <button
-              className="lyrics-context-menu-item"
+              className="context-menu-item"
               onClick={() => {
                 decreaseFontSize()
                 setContextMenu(null)
               }}
               disabled={lyricsOptions.fontSize <= FONT_SIZE_MIN}
             >
-              <span>字体变小</span>
-              <span className="lyrics-context-menu-shortcut">Ctrl+Minus</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M8 19h8M8 12h8M8 5h8"/>
+              </svg>
+              字体变小
             </button>
-            <div className="lyrics-context-menu-divider" />
+            <div className="context-menu-divider" />
             <button
-              className="lyrics-context-menu-item"
+              className="context-menu-item"
               onClick={() => {
                 resetFontSize()
                 setContextMenu(null)
               }}
             >
-              <span>重置字号</span>
-              <span className="lyrics-context-menu-shortcut">Ctrl+0</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                <path d="M21 3v5h-5"/>
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                <path d="M3 21v-5h5"/>
+              </svg>
+              重置字号
             </button>
           </div>
         )}
