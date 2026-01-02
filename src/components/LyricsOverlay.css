@@ -1,14 +1,17 @@
 /* 歌词 Overlay 遮罩 */
 .lyrics-overlay {
   position: fixed;
-  inset: 0 0 72px 0; /* ⭐ 为底部 PlayerBar (72px) 留出空间 */
+  bottom: 72px; /* ⭐ 从底部开始，BottomBar 高度为 72px */
+  left: 0;
+  right: 0;
+  top: auto; /* ⭐ 重点：从下往上扩展 */
   background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(20px);
-  z-index: 999; /* ⭐ 低于 PlayerBar (1000)，确保 PlayerBar 始终在最上层 */
+  z-index: 999; /* ⭐ 低于 PlayerBar (1000)，确保 BottomBar 始终在最上层 */
   display: flex;
   align-items: center;
   justify-content: center;
-  /* ⭐ 移除 CSS 动画，改用 framer-motion */
+  overflow: hidden; /* ⭐ 关键：防止内容在展开时提前露出 */
 }
 
 /* ⭐ 移除旧的 .lyrics-overlay-open 类，现在由 framer-motion 控制 */
@@ -21,8 +24,8 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 48px 60px 32px; /* ⭐ 减少上下 padding，腾出更多垂直空间给歌词 */
-  /* ⭐ 移除 CSS 动画，改用 framer-motion */
+  padding: 48px 60px 32px;
+  /* ⭐ 不再使用 framer-motion 的 y 偏移，改为高度动画 */
 }
 
 /* ⭐ 移除旧的 .lyrics-overlay-open .lyrics-content 规则 */
@@ -30,13 +33,13 @@
 /* 左右布局 - 使用 Grid 实现左窄右宽布局 */
 .lyrics-layout {
   display: grid;
-  grid-template-columns: 1.5fr 3fr; /* ⭐ 左侧约 33% / 右侧约 67%，大屏下封面不会太靠右 */
-  gap: 0; /* ⭐ 移除间距，让两个 box 紧密相连 */
+  grid-template-columns: 1fr 2fr; /* ⭐ 调整比例适应全屏展开 */
+  gap: 0;
   height: 100%;
-  flex: 1; /* ⭐ 占满可用高度，便于内部滚动 */
-  min-height: 0; /* ⭐ 防止子元素高度溢出，保证滚动生效 */
-  width: 100%;
-}
+  flex: 1;
+  min-height: 0;
+  width: 100%; /* ⭐ 全宽 */
+  max-width: 100%; /* ⭐ 不限制宽度 */
 
 /* 左侧 Box：封面容器（约 33% 宽，封面靠左对齐）*/
 .lyrics-cover-section {

@@ -60,6 +60,23 @@
   - 左侧封面展示 + 右侧歌词滚动
   - 点击遮罩或按 ESC 关闭
 
+### 📊 音乐统计与管理
+- **收藏管理**：一键收藏/取消收藏，实心红色心标标识
+- **播放记录**：
+  - **最近播放页**：按播放顺序显示最新听过的歌曲
+  - **真实播放时长统计**：累积记录用户实际听歌时间（支持暂停/停止/切歌时中断记录）
+  - **智能触发点**：
+    - 暂停时记录已播放的时长
+    - 播放完整歌曲时记录完整时长
+    - 切换到下一首/上一首时记录当前歌的时长
+- **播放列表**：创建自定义播放列表，管理喜爱的歌曲集合
+- **统计信息**：
+  - **总体统计**：本地歌曲数、收藏数、总播放次数、总播放时长
+  - **最常播放排行**：Top 10 最常播放的歌曲（按播放次数）
+  - **艺术家统计**：Top 10 最常播放的艺术家
+  - **专辑统计**：Top 10 最常播放的专辑
+  - **精准计算**：使用真实记录的播放时长而非理论值（播放次数 × 歌曲时长）
+
 ## 🏗️ 技术架构
 
 ### 前端技术栈
@@ -92,11 +109,16 @@
   - 关键词清洗与规范化（保留重要版本信息）
   - Query 截断（最长 60 字符，避免过长查询）
   - 封面 URL 质量提升（600x600）
-- **缓存策略**：
+- **caching strategy**：
   - 专辑封面 URL 缓存（electron-store）
   - 歌词结果缓存（内存缓存 + 竞态控制）
   - 本地 LRC 最高优先级（跳过在线搜索）
   - 失败缓存（TTL 10 分钟，避免重复请求）
+- **播放时长追踪**：
+  - Record each playback session automatically when playback ends, pauses, or switches
+  - Accumulate actual listening time per track (seconds)
+  - Persist play duration data in localStorage with 1-second debounce
+  - Support for accurate statistics (not theoretical: playCount × duration)
 
 ## 🚀 快速开始
 
@@ -133,11 +155,16 @@ Music-Player/
 ├── src/
 │   ├── components/          # React 组件
 │   │   ├── TopBar.tsx       # 顶部栏（搜索/排序）
-│   │   ├── TrackList.tsx    # 曲目列表
-│   │   ├── PlayerBar.tsx    # 底部播放器
-│   │   └── LyricsOverlay.tsx # 歌词覆盖层
+│   │   ├── TrackList.tsx    # 曲目列表（支持右键菜单）
+│   │   ├── PlayerBar.tsx    # 底部播放器（实时记录播放时长）
+│   │   ├── LyricsOverlay.tsx # 歌词覆盖层
+│   │   ├── FavoritesPage.tsx # 收藏页面
+│   │   ├── RecentsPage.tsx   # 最近播放页面
+│   │   ├── PlaylistsPage.tsx # 播放列表页面
+│   │   └── StatsPage.tsx     # 统计信息页面（真实播放时长）
 │   ├── store/
-│   │   └── playerStore.ts   # Zustand 状态管理
+│   │   ├── playerStore.ts    # Zustand 播放状态管理
+│   │   └── libraryStore.ts   # 本地数据持久化层（收藏、播放记录、播放时长）
 │   ├── providers/           # 音乐源 Provider
 │   │   ├── LocalProvider.ts
 │   │   └── index.ts
@@ -319,6 +346,46 @@ contextBridge.exposeInMainWorld('electronAPI', {
 })
 ```
 
+### 真实播放时长统计系统
+精确追踪用户实际听歌时长，而非理论值（播放次数 × 歌曲时长）：
+
+```typescript
+// 播放时长记录流程
+1. 用户暂停 → recordPlayDuration(trackId, currentTime)
+2. 用户切换歌曲 → recordPlayDuration(prevTrackId, prevTrackTime)
+3. 播放自动结束 → recordPlayDuration(trackId, duration)
+
+// libraryStore 中累积存储
+playDurations: Record<trackId, totalSecondsListened>
+```
+
+**实现特点**：
+- **自动触发**：暂停、播放结束、切歌时自动记录（用户无感知）
+- **精确计算**：只记录实际听过的秒数
+  - 如果用户听了 30 秒就暂停，只计 30 秒
+  - 如果播放完整歌曲，计全部时长
+  - 多次播放时长累加
+- **数据持久化**：通过 electron-store 防抖保存，1 秒内批量写入
+- **统计应用**：
+  - 最近播放页：按播放顺序显示
+  - 统计页：
+    - 总播放时长 = 所有歌曲 playDurations 之和
+    - 排行榜基于 playCounts（播放次数）
+    - 艺术家/专辑统计基于 playCounts
+
+**数据结构**：
+```typescript
+// LibraryData 接口
+{
+  playCounts: Record<string, number>        // 每首歌播放次数
+  playDurations: Record<string, number>     // 每首歌实际听歌时长（秒）
+  lastPlayedAt: Record<string, number>      // 最后播放时间戳
+  favorites: string[]                        // 收藏歌曲 ID 列表
+  recents: string[]                         // 最近播放 ID 列表（最多 50 首）
+  playlists: PlaylistData[]                 // 自定义播放列表
+}
+```
+
 ## 🤝 贡献指南
 
 欢迎提交 Issue 和 Pull Request！
@@ -331,14 +398,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
 5. 开启 Pull Request
 
 ## 📝 待实现功能
-- [ ] 播放列表管理（创建/编辑/删除）
-- [ ] 播放历史记录
-- [ ] 音乐标签编辑
+- [ ] 音乐标签编辑（ID3 写入）
 - [ ] 均衡器支持
-- [ ] 主题自定义
+- [ ] 主题自定义（深色/浅色模式）
 - [ ] macOS/Linux 平台测试和优化
 - [ ] 支持手动选择/上传封面和歌词
 - [ ] 更多在线歌词源支持（QQ 音乐、Apple Music 等）
+- [ ] 播放列表导出（导出为 M3U/TXT 格式）
+- [ ] 歌词文件编辑器
 
 ## 📄 开源协议
 

@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react'
 import './App.css'
+import { Sidebar, PageType } from './components/Sidebar'
 import { TopBar } from './components/TopBar'
 import { TrackList } from './components/TrackList'
 import { PlayerBar } from './components/PlayerBar'
 import { LyricsOverlay } from './components/LyricsOverlay'
+import { SettingsOverlay } from './components/SettingsOverlay'
+import { StatsPage } from './components/StatsPage'
 import { usePlayerStore, Track } from './store/playerStore'
+import { libraryStore } from './store/libraryStore' // ⭐ 导入数据层
 import { providerManager, LocalProvider } from './providers'
 
 // 声明 electronAPI 类型
@@ -39,14 +43,33 @@ function formatDuration(seconds: number): string {
 }
 
 function App() {
+  const [currentPage, setCurrentPage] = useState<PageType>('local') // ⭐ 当前页面
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null) // ⭐ 选中的播放列表
   const [tracks, setTracks] = useState<Track[]>([]) // 原始完整列表
   const [displayedTracks, setDisplayedTracks] = useState<Track[]>([]) // 显示的列表
   const [selectedFolder, setSelectedFolder] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<'none' | 'title' | 'artist'>('none')
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false) // ⭐ 设置状态
+  const [settingsOrigin, setSettingsOrigin] = useState<{ x: number; y: number } | null>(null) // ⭐ 齿轮按钮位置
   
   const { setPlaylist, playTrack, currentTrack, playlist, setLyricsOptions } = usePlayerStore()
+
+  // ⭐ 设置切换函数
+  const handleSettingsToggle = (position?: { x: number; y: number }) => {
+    if (position) {
+      setSettingsOrigin(position)
+    }
+    setIsSettingsOpen(!isSettingsOpen)
+    console.log('🔧 [设置] 状态:', !isSettingsOpen, '位置:', position)
+  }
+
+  // ⭐ 关闭设置函数
+  const handleSettingsClose = () => {
+    setIsSettingsOpen(false)
+    console.log('🔧 [设置] 关闭')
+  }
 
   // ⭐ 初始化：从 electron-store 读取持久化设置
   useEffect(() => {
@@ -101,6 +124,9 @@ function App() {
         if (allTracks.length > 0) {
           setTracks(allTracks)
           setDisplayedTracks(allTracks)
+          
+          // ⭐ 更新 libraryStore
+          libraryStore.upsertTracks(allTracks)
           
           // 更新 LocalProvider 的曲库
           const localProvider = providerManager.getProvider('local') as LocalProvider
@@ -158,6 +184,10 @@ function App() {
         const mergedTracks = [...tracks, ...uniqueNewTracks]
         setTracks(mergedTracks)
         setDisplayedTracks(mergedTracks)
+        
+        // ⭐ 更新 libraryStore
+        libraryStore.upsertTracks(mergedTracks)
+        libraryStore.addImportedFolder(folderPath)
         
         // 更新 LocalProvider 的曲库
         const localProvider = providerManager.getProvider('local') as LocalProvider
@@ -286,6 +316,9 @@ function App() {
       setTracks(mergedTracks)
       setDisplayedTracks(mergedTracks)
       
+      // ⭐ 更新 libraryStore
+      libraryStore.upsertTracks(mergedTracks)
+      
       // 更新 LocalProvider 的曲库
       const localProvider = providerManager.getProvider('local') as LocalProvider
       if (localProvider) {
@@ -303,27 +336,136 @@ function App() {
 
   return (
     <div className="app">
-      <TopBar 
-        searchQuery={searchQuery}
-        onSearchChange={handleSearch}
-        onImportClick={handleSelectFolder}
-        loading={loading}
-        onRescan={handleRescanFolder}
-        onRemoveFolder={handleRemoveFolder}
-      />
+      {/* ⭐ 左侧边栏 */}
+      <Sidebar currentPage={currentPage} onPageChange={setCurrentPage} />
       
-      <div className="app-main">
-        <TrackList 
-          tracks={displayedTracks}
-          currentTrack={currentTrack}
-          onTrackClick={handleTrackClick}
+      {/* ⭐ 右侧主内容区 */}
+      <div className="app-content">
+        {/* TopBar */}
+        <TopBar 
+          searchQuery={searchQuery}
+          onSearchChange={handleSearch}
+          onImportClick={handleSelectFolder}
+          loading={loading}
+          onRescan={handleRescanFolder}
+          onRemoveFolder={handleRemoveFolder}
+          isSettingsOpen={isSettingsOpen}
+          onSettingsToggle={handleSettingsToggle}
         />
+        
+        {/* 主内容 - 根据当前页面显示不同内容 */}
+        <main className="app-main">
+          {currentPage === 'local' && (
+            <TrackList 
+              tracks={displayedTracks}
+              currentTrack={currentTrack}
+              onTrackClick={handleTrackClick}
+            />
+          )}
+          {currentPage === 'favorites' && (
+            <TrackList 
+              tracks={displayedTracks
+                .filter(t => libraryStore.isFavorite(t.id))
+                .sort((a, b) => {
+                  const timeA = libraryStore.getLastPlayedAt(a.id) || 0
+                  const timeB = libraryStore.getLastPlayedAt(b.id) || 0
+                  return timeB - timeA // 最近播放的在前面
+                })}
+              currentTrack={currentTrack}
+              onTrackClick={handleTrackClick}
+            />
+          )}
+          {currentPage === 'recents' && (
+            <TrackList 
+              tracks={(() => {
+                const recentIds = libraryStore.getRecents()
+                return displayedTracks.filter(t => recentIds.includes(t.id))
+                  .sort((a, b) => {
+                    const indexA = recentIds.indexOf(a.id)
+                    const indexB = recentIds.indexOf(b.id)
+                    return indexA - indexB // 保持 getRecents() 返回的顺序（最新的在最前面）
+                  })
+              })()}
+              currentTrack={currentTrack}
+              onTrackClick={handleTrackClick}
+            />
+          )}
+          {currentPage === 'playlists' && !selectedPlaylistId && (
+            <div className="playlist-selector">
+              <div className="playlist-header">
+                <h2>播放列表</h2>
+              </div>
+              <div className="playlist-list">
+                {libraryStore.getPlaylists().length === 0 ? (
+                  <div className="page-placeholder">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <line x1="8" y1="6" x2="21" y2="6"/>
+                      <line x1="8" y1="12" x2="21" y2="12"/>
+                      <line x1="8" y1="18" x2="21" y2="18"/>
+                      <line x1="3" y1="6" x2="3.01" y2="6"/>
+                      <line x1="3" y1="12" x2="3.01" y2="12"/>
+                      <line x1="3" y1="18" x2="3.01" y2="18"/>
+                    </svg>
+                    <h2>暂无播放列表</h2>
+                    <p>在右键菜单中创建新的播放列表</p>
+                  </div>
+                ) : (
+                  libraryStore.getPlaylists().map(playlist => (
+                    <div
+                      key={playlist.id}
+                      className="playlist-item"
+                      onClick={() => setSelectedPlaylistId(playlist.id)}
+                    >
+                      <div className="playlist-name">{playlist.name}</div>
+                      <div className="playlist-count">{playlist.trackIds.length} 首</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+          {currentPage === 'playlists' && selectedPlaylistId && (
+            <div className="playlist-view">
+              <div className="playlist-toolbar">
+                <button 
+                  className="back-btn"
+                  onClick={() => setSelectedPlaylistId(null)}
+                >
+                  ← 返回
+                </button>
+                <h2>{libraryStore.getPlaylists().find(p => p.id === selectedPlaylistId)?.name}</h2>
+              </div>
+              <TrackList 
+                tracks={displayedTracks.filter(t => 
+                  libraryStore.getPlaylists()
+                    .find(p => p.id === selectedPlaylistId)
+                    ?.trackIds.includes(t.id) || false
+                )}
+                currentTrack={currentTrack}
+                onTrackClick={handleTrackClick}
+              />
+            </div>
+          )}
+          {currentPage === 'stats' && (
+            <StatsPage tracks={displayedTracks} libraryStore={libraryStore} />
+          )}
+        </main>
       </div>
       
+      {/* ⭐ 底部播放栏 - 跨页面固定 */}
       <PlayerBar />
       
       {/* ⭐ 歌词 Overlay */}
       <LyricsOverlay />
+      
+      {/* ⭐ 设置 Overlay */}
+      <SettingsOverlay 
+        isOpen={isSettingsOpen}
+        onClose={handleSettingsClose}
+        onRescan={handleRescanFolder}
+        onRemove={handleRemoveFolder}
+        originPosition={settingsOrigin}
+      />
     </div>
   )
 }

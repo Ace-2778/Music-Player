@@ -1,0 +1,354 @@
+/* SettingsOverlay 全屏覆盖层 */
+.settings-overlay {
+  position: fixed;
+  top: 0; /* ⭐ 遮挡整个顶部 */
+  bottom: 72px; /* ⭐ PlayerBar 高度，不遮挡底部播放栏 */
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(20px);
+  z-index: 997; /* ⭐ 低于 LyricsOverlay (999)，但高于其他内容 */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* ⭐ 配合 clip-path 动画 */
+}
+
+/* 设置内容容器 - 铺满全屏 */
+.settings-content {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 64px 80px 40px; /* ⭐ 留出顶部空间给齿轮按钮 */
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* 设置头部 */
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 24px;
+  border-bottom: 2px solid #e5e5e5;
+  margin-bottom: 32px;
+}
+
+.settings-title {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  color: #171717;
+  letter-spacing: -1px;
+}
+
+.settings-close-btn {
+  display: none; /* ⭐ 隐藏内部关闭按钮，使用顶部齿轮按钮关闭 */
+}
+
+/* 设置主体内容 */
+.settings-body {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 20px; /* ⭐ 为滚动条留空间 */
+}
+
+/* 设置区块 */
+.settings-section {
+  margin-bottom: 32px;
+}
+
+.settings-section:last-child {
+  margin-bottom: 0;
+}
+
+.settings-section-title {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #171717;
+  letter-spacing: -0.3px;
+}
+
+/* 设置列表 - 极简风格 */
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  transition: all 0.15s ease-out;
+}
+
+.settings-item:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.settings-item-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  margin: 0;
+}
+
+.settings-item-control {
+  display: flex;
+  align-items: center;
+}
+
+/* 下拉选择框 */
+.settings-select {
+  padding: 6px 12px;
+  font-size: 14px;
+  color: #374151;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+  outline: none;
+}
+
+.settings-select:hover {
+  border-color: #9ca3af;
+}
+
+.settings-select:focus {
+  outline: none; /* ⭐ 简约设计：移除描边 */
+  border-color: #171717;
+}
+
+/* Switch 开关 */
+.settings-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.settings-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.settings-switch-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #d1d5db;
+  border-radius: 24px;
+  transition: all 0.2s ease-out;
+}
+
+.settings-switch-slider::before {
+  content: '';
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: #ffffff;
+  border-radius: 50%;
+  transition: all 0.2s ease-out;
+}
+
+.settings-switch input:checked + .settings-switch-slider {
+  background: #171717;
+}
+
+.settings-switch input:checked + .settings-switch-slider::before {
+  transform: translateX(20px);
+}
+
+.settings-switch:hover .settings-switch-slider {
+  background: #9ca3af;
+}
+
+.settings-switch input:checked:hover + .settings-switch-slider {
+  background: #404040;
+}
+
+/* 空状态 */
+.settings-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
+  color: #9ca3af;
+  background: #f9fafb;
+  border-radius: 12px;
+  border: 1px dashed #d1d5db;
+}
+
+.settings-empty svg {
+  margin-bottom: 12px;
+  opacity: 0.6;
+}
+
+.settings-empty p {
+  margin: 0 0 8px 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.settings-empty span {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+/* 文件夹列表 */
+.settings-folder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-folder-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  transition: all 0.15s ease-out;
+}
+
+.settings-folder-item:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.settings-folder-path {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0; /* 允许 text-overflow */
+}
+
+.settings-folder-path svg {
+  flex-shrink: 0;
+  color: #9ca3af;
+}
+
+.settings-folder-path span {
+  flex: 1;
+  font-size: 14px;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-folder-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.settings-folder-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #4b5563;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+}
+
+.settings-folder-action:hover:not(:disabled) {
+  color: #171717;
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.settings-folder-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.settings-folder-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+.settings-folder-remove {
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+.settings-folder-remove:hover:not(:disabled) {
+  color: #ffffff;
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+/* 占位符样式 */
+.settings-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 60px 20px;
+  color: #9ca3af;
+}
+
+.settings-placeholder svg {
+  margin-bottom: 16px;
+  opacity: 0.6;
+}
+
+.settings-placeholder p {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .settings-content {
+    padding: 64px 40px 32px;
+  }
+  
+  .settings-header {
+    padding-bottom: 20px;
+    margin-bottom: 24px;
+  }
+  
+  .settings-title {
+    font-size: 24px;
+  }
+  
+  .settings-body {
+    padding-right: 10px;
+  }
+  
+  .settings-empty {
+    padding: 30px 20px;
+  }
+}

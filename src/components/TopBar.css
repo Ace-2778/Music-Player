@@ -7,6 +7,9 @@
   background: #ffffff;
   border-bottom: 1px solid #e5e5e5;
   flex-shrink: 0;
+  overflow: visible !important; /* ⭐ 强制显示溢出内容 */
+  position: relative;
+  z-index: 999; /* ⭐ 确保高于其他元素 */
 }
 
 .topbar-left {
@@ -53,7 +56,7 @@
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px; /* ⭐ 增加间距以适应新的齿轮按钮 */
 }
 
 .import-button {
@@ -81,3 +84,59 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ⭐ 设置齿轮按钮样式 */
+.settings-button {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #525252; /* 默认：深灰色 */
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+  position: relative;
+  z-index: 998;
+  opacity: 1 !important;
+  filter: none !important;
+  clip-path: none !important;
+  mask: none !important;
+  overflow: visible !important;
+}
+
+.settings-button:hover {
+  color: #111111;
+  background: #f5f5f5;
+}
+
+.settings-button:focus-visible {
+  outline: none;
+}
+
+.settings-button.settings-open {
+  color: #111111;
+}
+
+/* ⭐ 齿轮图标动画 */
+.settings-icon {
+  transition: transform 0.15s ease-out;
+  opacity: 1 !important;
+  filter: none !important;
+  clip-path: none !important;
+  mask: none !important;
+  overflow: visible !important;
+  width: 20px;
+  height: 20px;
+}
+
+.settings-button:hover .settings-icon {
+  transform: rotate(30deg);
+}
+
+.settings-button.settings-open .settings-icon {
+  transform: rotate(30deg);
+}
+

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePlayerStore } from '../store/playerStore'
+import { libraryStore } from '../store/libraryStore' // ⭐ 导入数据层
 import { fetchCoverForTrack } from '../utils/coverSearch'
 import { normalizeCoverSrc } from '../utils/normalizeCoverSrc'
 import './PlayerBar.css'
@@ -74,7 +75,11 @@ export function PlayerBar() {
       setDuration(audio.duration)
     }
     const handleEnded = () => {
-      console.log('🏁 [PlayerBar] 播放结束，自动下一首')
+      console.log('🏁 [PlayerBar] 播放结束，记录实际播放时长并自动下一首')
+      // ⭐ 记录播放的实际时长（秒）
+      if (currentTrack && audio.currentTime > 0) {
+        libraryStore.recordPlayDuration(currentTrack.id, Math.round(audio.currentTime))
+      }
       next()
     }
     const handleLoadStart = () => console.log('📥 [PlayerBar] 开始加载音频')
@@ -83,7 +88,13 @@ export function PlayerBar() {
     }
     const handleCanPlay = () => console.log('✅ [PlayerBar] 可以开始播放')
     const handlePlay = () => console.log('▶️ [PlayerBar] 播放事件触发')
-    const handlePause = () => console.log('⏸️ [PlayerBar] 暂停事件触发')
+    const handlePause = () => {
+      console.log('⏸️ [PlayerBar] 暂停，记录已播放的时长')
+      // ⭐ 当暂停时记录已播放的时长
+      if (currentTrack && audio.currentTime > 0) {
+        libraryStore.recordPlayDuration(currentTrack.id, Math.round(audio.currentTime))
+      }
+    }
     const handleError = () => {
       console.error('❌ [PlayerBar] 音频错误:', audio.error)
     }
@@ -109,7 +120,7 @@ export function PlayerBar() {
       audio.removeEventListener('pause', handlePause)
       audio.removeEventListener('error', handleError)
     }
-  }, [setCurrentTime, setDuration, next])
+  }, [setCurrentTime, setDuration, next, currentTrack])
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = parseFloat(e.target.value)

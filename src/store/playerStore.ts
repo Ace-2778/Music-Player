@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { libraryStore } from './libraryStore' // ⭐ 导入数据层
 
 export interface Track {
   id: string
@@ -19,6 +20,7 @@ export interface LyricsDisplayOptions {
   fontFamily: string                   // 字体
   fontSize: number                     // 字号（px）
   lineHeight: number                   // 行高（倍数）
+  enableOnlineSearch: boolean          // ⭐ 启用在线封面/歌词搜索
 }
 
 interface PlayerState {
@@ -80,7 +82,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     align: 'left',                          // 默认左对齐
     fontFamily: 'system-ui, sans-serif',    // 系统默认字体
     fontSize: 20,                           // ⭐ 默认 20px（调大以提升可读性）
-    lineHeight: 1.8                         // 默认 1.8 倍行高
+    lineHeight: 1.8,                        // 默认 1.8 倍行高
+    enableOnlineSearch: true                // ⭐ 默认启用在线搜索
   },
 
   setPlaylist: (tracks) => set({ playlist: tracks }),
@@ -171,6 +174,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       console.log('✅ [playTrack] 播放命令已发送')
       set({ isPlaying: true })
       
+      // ⭐ 记录播放到 libraryStore
+      libraryStore.recordPlay(track.id)
+      
     } catch (error) {
       // ⭐ 仅处理同步异常（如加载文件失败）
       // play() Promise 的异常在上面的 .catch() 中处理
@@ -260,7 +266,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   next: () => {
     console.log('⏭️ [next] 下一首')
-    const { playlist, currentIndex, playTrack } = get()
+    const { playlist, currentIndex, playTrack, currentTrack, audioElement } = get()
+    
+    // ⭐ 记录上一首歌的播放时长
+    if (currentTrack && audioElement && audioElement.currentTime > 0) {
+      libraryStore.recordPlayDuration(currentTrack.id, Math.round(audioElement.currentTime))
+      console.log('⏱️ [next] 记录上一首歌的播放时长:', currentTrack.title, `${Math.round(audioElement.currentTime)}s`)
+    }
     
     if (playlist.length === 0) {
       console.warn('⚠️ [next] 播放列表为空')
@@ -286,7 +298,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   prev: () => {
     console.log('⏮️ [prev] 上一首')
-    const { playlist, currentIndex, playTrack } = get()
+    const { playlist, currentIndex, playTrack, currentTrack, audioElement } = get()
+    
+    // ⭐ 记录当前歌的播放时长
+    if (currentTrack && audioElement && audioElement.currentTime > 0) {
+      libraryStore.recordPlayDuration(currentTrack.id, Math.round(audioElement.currentTime))
+      console.log('⏱️ [prev] 记录当前歌的播放时长:', currentTrack.title, `${Math.round(audioElement.currentTime)}s`)
+    }
     
     if (playlist.length === 0) {
       console.warn('⚠️ [prev] 播放列表为空')

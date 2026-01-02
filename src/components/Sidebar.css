@@ -1,47 +1,76 @@
+/* Sidebar - 极简风格 */
 .sidebar {
-  width: 200px;
-  background: #1e1e1e;
-  color: white;
-  padding: 20px 0;
+  width: 15vw; /* ⭐ 响应式宽度：占窗口宽度 15% */
+  min-width: 160px; /* ⭐ 最小宽度防止过窄 */
+  max-width: 220px; /* ⭐ 最大宽度防止过宽 */
+  height: 100vh;
+  background: #ffffff;
+  border-right: 1px solid #e5e5e5;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  border-right: 1px solid #333;
   flex-shrink: 0;
 }
 
-.sidebar-title {
-  padding: 10px 20px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #888;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.sidebar-item {
-  padding: 12px 20px;
-  cursor: pointer;
-  transition: background 0.2s;
+/* Sidebar 头部 */
+.sidebar-header {
+  height: 64px; /* ⭐ 与 TopBar 高度一致 */
   display: flex;
   align-items: center;
-  gap: 10px;
+  padding: 0 24px; /* ⭐ 与 TopBar 水平对齐 */
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.sidebar-logo {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #171717;
+  letter-spacing: -0.5px;
+  line-height: 1; /* ⭐ 确保文字垂直对齐 */
+}
+
+/* Sidebar 导航 */
+.sidebar-nav {
+  flex: 1;
+  padding: 16px 0;
+  overflow-y: auto;
+}
+
+/* Sidebar 菜单项 */
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  margin: 0 12px 4px;
   font-size: 14px;
-  border-left: 3px solid transparent;
+  font-weight: 500;
+  color: #6b7280;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+  width: calc(100% - 24px);
+  text-align: left;
 }
 
 .sidebar-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  color: #171717;
+  background: #f5f5f5;
 }
 
-.sidebar-item.active {
-  background: rgba(255, 255, 255, 0.15);
-  border-left-color: #646cff;
+.sidebar-item-active {
+  color: #171717;
+  background: #f0f0f0;
   font-weight: 600;
 }
 
 .sidebar-item-icon {
-  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .sidebar-item-label {

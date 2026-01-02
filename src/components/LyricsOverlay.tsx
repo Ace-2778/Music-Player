@@ -306,10 +306,9 @@ export function LyricsOverlay() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [showLyricsOverlay, setShowLyricsOverlay, lyricsOptions.fontSize, setLyricsOptions])
 
-  if (!showLyricsOverlay) {
-    return null
-  }
-
+  // ⭐ 关键：移除这里的早期返回，让 AnimatePresence 控制卸载
+  // 这样可以确保 exit 动画完全执行后才卸载组件
+  
   const handleClose = () => {
     setShowLyricsOverlay(false)
   }
@@ -322,32 +321,27 @@ export function LyricsOverlay() {
   }
 
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {showLyricsOverlay && (
         <motion.div 
           className="lyrics-overlay"
           onClick={handleOverlayClick}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.25 }}
+          initial={{ height: 0 }}
+          animate={{ height: 'calc(100vh - 72px)' }}
+          exit={{ height: 0 }}
+          transition={{ 
+            duration: 0.4, 
+            ease: 'easeInOut'
+          }}
         >
           <motion.div 
             className="lyrics-content"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.3, delay: 0.1 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15, delay: 0.15 }}
           >
-            {/* 右上角关闭按钮 */}
-        <button className="lyrics-close-btn" onClick={handleClose}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-
-        {currentTrack && (
+            {currentTrack && (
           <div className="lyrics-layout">
             {/* 左侧：封面 */}
             <div className="lyrics-cover-section">
