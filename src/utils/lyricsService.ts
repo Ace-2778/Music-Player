@@ -4,11 +4,62 @@ import { normalizeTrackInfo, NormalizedTrackInfo } from './normalizeTrackInfo'
 import { buildSearchPlan, runSearchPlan, SearchStep } from './searchPlan'
 import { selectBestCandidate } from './scoringSystem'
 import type { Track } from '../store/playerStore'
+import { searchFromNetEase } from './neteaseProvider'
+import { searchFromKugou } from './kugouProvider'
+
+/**
+ * ⭐ 尝试从本地文件系统加载 LRC 文件
+ * @param track - 音轨对象（必须包含 path）
+ * @returns LyricsResult 或 null（未找到/解析失败）
+ */
+async function tryLoadLocalLrc(track: Track): Promise<LyricsResult | null> {
+  // 只处理本地文件（包含完整路径）
+  if (!track.path || !track.path.includes('/') && !track.path.includes('\\')) {
+    return null
+  }
+  
+  try {
+    console.log('📂 [Local LRC] 尝试查找本地 LRC 文件:', track.path)
+    
+    const result = await window.electronAPI.readLocalLrc(track.path)
+    
+    if (!result.success || !result.content) {
+      console.log('⚠️ [Local LRC] 未找到文件')
+      return null
+    }
+    
+    console.log('✅ [Local LRC] 找到文件:', result.path)
+    
+    // 尝试解析 LRC 格式
+    const lrcLines = parseLRC(result.content)
+    
+    // 检查是否有时间戳
+    const hasTimestamps = lrcLines.some(line => line.timeMs !== undefined)
+    
+    if (lrcLines.length > 0 && hasTimestamps) {
+      console.log(`✨ [Local LRC] 成功解析！${lrcLines.length} 行，带时间戳`)
+      return {
+        type: 'lrc',
+        source: 'local-file',
+        raw: result.content,
+        lines: lrcLines,
+        hasTimestamps: true
+      }
+    } else {
+      console.log('⚠️ [Local LRC] 解析失败或无时间戳')
+      return null
+    }
+    
+  } catch (error) {
+    console.error('❌ [Local LRC] 加载失败:', error)
+    return null
+  }
+}
 
 /**
  * 歌词候选结果接口
  */
-interface LyricsCandidate {
+export interface LyricsCandidate {
   title: string
   artist?: string
   album?: string
@@ -168,7 +219,7 @@ function candidateToLyricsResult(candidate: LyricsCandidate): LyricsResult | nul
     const lines = parseLRC(candidate.syncedLyrics)
     return {
       type: 'lrc',
-      source: candidate.source as 'lrclib' | 'lyrics.ovh',
+      source: candidate.source as any, // ⭐ 支持任意 source
       raw: candidate.syncedLyrics,
       lines,
       hasTimestamps: true
@@ -180,7 +231,7 @@ function candidateToLyricsResult(candidate: LyricsCandidate): LyricsResult | nul
     const lines = toPlainLines(candidate.plainLyrics)
     return {
       type: 'plain',
-      source: candidate.source as 'lrclib' | 'lyrics.ovh',
+      source: candidate.source as any, // ⭐ 支持任意 source
       raw: candidate.plainLyrics,
       lines,
       hasTimestamps: false
@@ -191,31 +242,76 @@ function candidateToLyricsResult(candidate: LyricsCandidate): LyricsResult | nul
 }
 
 /**
+ * ⭐ 统一的带时间戳歌词搜索接口
+ * 并行调用所有 LRC Provider，合并去重后返回
+ * @param query - 搜索参数
+ * @returns 所有候选结果
+ */
+async function searchSyncedLyrics(query: {
+  artist?: string
+  title?: string
+  album?: string
+  keywords?: string
+}): Promise<LyricsCandidate[]> {
+  const artist = query.artist
+  const title = query.title || query.keywords
+  const album = query.album
+  
+  console.log('🔍 [Synced Lyrics] 并行搜索多个 Provider')
+  
+  // ⭐ 并行调用所有 Provider
+  const results = await Promise.allSettled([
+    searchFromLRCLIB(artist, title, album),
+    searchFromNetEase(artist, title),
+    searchFromKugou(artist, title),
+    searchFromLyricsOvh(artist, title) // ⭐ 添加 lyrics.ovh 作为兜底
+  ])
+  
+  // 合并所有成功的结果
+  let allCandidates: LyricsCandidate[] = []
+  
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i]
+    if (result.status === 'fulfilled' && result.value.length > 0) {
+      const providerName = ['LRCLIB', 'NetEase', 'Kugou', 'lyrics.ovh'][i]
+      console.log(`  ✅ ${providerName}: ${result.value.length} 个候选`)
+      allCandidates.push(...result.value)
+    } else if (result.status === 'rejected') {
+      const providerName = ['LRCLIB', 'NetEase', 'Kugou', 'lyrics.ovh'][i]
+      console.log(`  ❌ ${providerName}: 失败`)
+    }
+  }
+  
+  // ⭐ 优先级：只要有带时间戳的候选，就过滤掉纯文本
+  const syncedCandidates = allCandidates.filter(c => c.syncedLyrics && c.syncedLyrics.trim())
+  if (syncedCandidates.length > 0) {
+    console.log(`✨ [Synced Lyrics] 找到 ${syncedCandidates.length} 个带时间戳的候选，过滤纯文本`)
+    return syncedCandidates
+  }
+  
+  // 去重（根据 title + artist + source）
+  const uniqueCandidates = Array.from(
+    new Map(
+      allCandidates.map(c => [
+        `${c.title}:${c.artist}:${c.source}`,
+        c
+      ])
+    ).values()
+  )
+  
+  console.log(`🎯 [Synced Lyrics] 总计 ${uniqueCandidates.length} 个唯一候选`)
+  return uniqueCandidates
+}
+
+/**
  * 创建歌词搜索函数（SearchPlan 适配器）
  */
 function createLyricsSearchFn(normalized: NormalizedTrackInfo) {
   return async (step: SearchStep): Promise<LyricsResult | null> => {
     const { query } = step
     
-    // 收集所有候选结果
-    let allCandidates: LyricsCandidate[] = []
-    
-    // 1. 尝试 LRCLIB
-    const lrclibCandidates = await searchFromLRCLIB(
-      query.artist,
-      query.title || query.keywords,
-      query.album
-    )
-    allCandidates.push(...lrclibCandidates)
-    
-    // 2. 尝试 lyrics.ovh（只支持 artist + title）
-    if (query.artist && (query.title || query.keywords)) {
-      const ovhCandidates = await searchFromLyricsOvh(
-        query.artist,
-        query.title || query.keywords
-      )
-      allCandidates.push(...ovhCandidates)
-    }
+    // ⭐ 使用统一的并行搜索接口
+    const allCandidates = await searchSyncedLyrics(query)
     
     if (allCandidates.length === 0) {
       return null
@@ -273,6 +369,14 @@ export async function resolveLyrics(track: Track): Promise<LyricsResult> {
       lines: [],
       hasTimestamps: false
     }
+  }
+  
+  // ⭐ 3. 优先级 0：尝试加载本地 LRC 文件（最高优先级）
+  const localLrc = await tryLoadLocalLrc(track)
+  if (localLrc) {
+    console.log('✨ [resolveLyrics] 本地 LRC 命中！直接返回')
+    lyricsCache.set(cacheKey, localLrc)
+    return localLrc
   }
   
   console.log('\n🎵 [resolveLyrics] 开始智能搜索')

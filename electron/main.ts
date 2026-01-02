@@ -344,4 +344,37 @@ ipcMain.handle('remove-library-folder', (event, folderPath: string) => {
   return updatedFolders
 })
 
+// ⭐ 新增：IPC Handler - 读取本地 LRC 文件
+ipcMain.handle('read-local-lrc', async (event, audioFilePath: string) => {
+  console.log('📝 [IPC] read-local-lrc 请求:', audioFilePath)
+  
+  try {
+    const fs = require('fs')
+    const dirname = path.dirname(audioFilePath)
+    const basename = path.basename(audioFilePath, path.extname(audioFilePath))
+    
+    // 尝试多种命名模式
+    const possibleLrcPaths = [
+      path.join(dirname, `${basename}.lrc`),  // 同名
+      path.join(dirname, `${basename}.LRC`)   // 大写扩展名
+    ]
+    
+    // 依次尝试每个可能的路径
+    for (const lrcPath of possibleLrcPaths) {
+      if (fs.existsSync(lrcPath)) {
+        console.log('✅ [Local LRC] 找到文件:', lrcPath)
+        const content = fs.readFileSync(lrcPath, 'utf-8')
+        return { success: true, content, path: lrcPath }
+      }
+    }
+    
+    console.log('⚠️ [Local LRC] 未找到文件')
+    return { success: false, content: null, path: null }
+    
+  } catch (error) {
+    console.error('❌ [Local LRC] 读取失败:', error)
+    return { success: false, content: null, path: null, error: String(error) }
+  }
+})
+
 app.whenReady().then(createWindow)

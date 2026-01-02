@@ -31,5 +31,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ⭐ 新增：曲库文件夹 API
   getLibraryFolders: () => ipcRenderer.invoke('get-library-folders') as Promise<string[]>,
   addLibraryFolder: (folderPath: string) => ipcRenderer.invoke('add-library-folder', folderPath) as Promise<string[]>,
-  removeLibraryFolder: (folderPath: string) => ipcRenderer.invoke('remove-library-folder', folderPath) as Promise<string[]>
+  removeLibraryFolder: (folderPath: string) => ipcRenderer.invoke('remove-library-folder', folderPath) as Promise<string[]>,
+  // ⭐ 新增：读取本地 LRC 文件
+  readLocalLrc: (audioFilePath: string) => ipcRenderer.invoke('read-local-lrc', audioFilePath) as Promise<{ success: boolean; content: string | null; path: string | null; error?: string }>
 })

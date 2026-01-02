@@ -19,15 +19,23 @@
 - **专辑封面**：
   - 优先显示音频文件内嵌封面
   - 自动从 iTunes API 搜索在线封面
+  - **版本识别**：支持长歌名和版本信息识别（如 "All Too Well (Ten Minute Version)"）
+  - **多级降级查询**：包含版本信息 → 标准查询 → 纯标题兜底
   - 封面缓存机制，减少网络请求
   - ⚠️ **搜索精准度有限**：基于歌曲标题和艺术家进行模糊匹配，部分歌曲可能无法找到封面或匹配到错误的专辑封面
 
-### 📖 在线歌词同步
+### 📖 智能歌词同步
 - **LRC 格式支持**：精确到毫秒的时间戳同步
-- **在线歌词获取**：
-  - 主源：LRCLIB（优先，支持 LRC 格式）
+- **本地歌词优先**：
+  - 自动读取音频文件同目录下的 `.lrc` 文件（最高优先级）
+  - 支持同名匹配（如 `song.mp3` → `song.lrc`）
+- **多源在线歌词获取**：
+  - 主源：LRCLIB（国际，LRC 格式）
+  - 国内源：网易云音乐、酷狗音乐（LRC 格式）
   - 备用源：lyrics.ovh（纯文本）
-  - 8秒超时 + 竞态控制，保证响应速度
+  - **4 个数据源并行调用**，提升命中率
+  - **优先返回带时间戳歌词**，只有所有源都没有 LRC 时才返回纯文本
+  - 8 秒超时 + 竞态控制，保证响应速度
   - ⚠️ **搜索精准度有限**：由于依赖第三方 API 和模糊匹配算法，部分歌曲可能无法找到歌词或匹配到错误的歌词
 - **智能歌词显示**：
   - 当前行高亮 + 自动居中滚动
@@ -72,17 +80,23 @@
 - **LRC 解析器**：支持多时间戳、毫秒精度解析
 - **智能搜索管线**：
   - 统一的 SearchPlan 架构（normalize → plan → scoring → cache）
+  - **版本信息提取**：自动识别括号内的版本修饰符（Ten Minute Version、Taylor's Version、From the Vault 等）
+  - **三字段分离**：displayTitle（UI 显示）、titleCore（搜索匹配）、titleQualifiers（版本数组）
   - 多维度评分系统（标题、艺术家、专辑、时长）
   - Token Overlap (40%) + Levenshtein 编辑距离 (60%) 混合算法
 - **封面搜索优化**：
   - iTunes API 专辑优先策略（entity=album → entity=song）
+  - **版本信息识别**：提取高价值修饰符（ten minute / taylor's version / from the vault / live / acoustic / remaster）
+  - **多级降级查询**：artist + titleCore + qualifiers → artist + titleCore → titleCore + qualifiers → titleCore
   - albumTracks 步骤：专辑曲目列表精确匹配
-  - 关键词清洗与规范化
+  - 关键词清洗与规范化（保留重要版本信息）
+  - Query 截断（最长 60 字符，避免过长查询）
   - 封面 URL 质量提升（600x600）
 - **缓存策略**：
   - 专辑封面 URL 缓存（electron-store）
   - 歌词结果缓存（内存缓存 + 竞态控制）
-  - 失败缓存（TTL 10分钟，避免重复请求）
+  - 本地 LRC 最高优先级（跳过在线搜索）
+  - 失败缓存（TTL 10 分钟，避免重复请求）
 
 ## 🚀 快速开始
 
@@ -128,11 +142,13 @@ Music-Player/
 │   │   ├── LocalProvider.ts
 │   │   └── index.ts
 │   ├── utils/               # 工具函数
-│   │   ├── lyricsService.ts    # 在线歌词获取
+│   │   ├── lyricsService.ts    # 歌词服务（本地 + 多 Provider）
+│   │   ├── neteaseProvider.ts  # 网易云音乐歌词 API
+│   │   ├── kugouProvider.ts    # 酷狗音乐歌词 API
 │   │   ├── lrcParser.ts        # LRC 格式解析
-│   │   ├── coverSearch.ts      # 封面搜索（iTunes API）
+│   │   ├── coverSearch.ts      # 封面搜索（iTunes API + qualifiers）
 │   │   ├── scoringSystem.ts    # 多维度评分系统
-│   │   ├── normalizeTrackInfo.ts # 曲目信息标准化
+│   │   ├── normalizeTrackInfo.ts # 曲目信息标准化（qualifiers 提取）
 │   │   ├── searchPlan.ts       # 搜索计划生成与执行
 │   │   └── normalizeCoverSrc.ts # 封面 URL 标准化
 │   └── types/               # TypeScript 类型定义
@@ -218,9 +234,23 @@ function stringSimilarity(str1: string, str2: string): number {
 - 评分阈值 50-55 分（过滤低质量结果）
 
 ### 封面搜索策略
-iTunes API 专辑优先 + 单曲兜底的多步骤搜索：
+iTunes API 专辑优先 + 单曲兜底的多步骤搜索（支持版本信息识别）：
 
 ```typescript
+// 多级降级查询生成
+function buildItunesQueries(normalized) {
+  const { artist, titleCore, titleQualifiers } = normalized
+  const importantQualifiers = extractImportantQualifiers(titleQualifiers)
+  
+  return [
+    `${artist} ${titleCore} ${importantQualifiers}`,  // Q1: 最精准
+    `${artist} ${titleCore}`,                         // Q2: 标准
+    `${titleCore} ${importantQualifiers}`,            // Q3: 无 artist
+    `${titleCore}`,                                   // Q4: 纯标题
+    `${album} ${titleCore}`                           // Q5: 专辑辅助
+  ]
+}
+
 // 搜索步骤
 1. iTunes 专辑搜索 (entity=album)
    → 专辑评分 > 55 分
@@ -230,7 +260,9 @@ iTunes API 专辑优先 + 单曲兜底的多步骤搜索：
    → 在专辑曲目中查找当前歌曲
    → 评分 > 50 分即采用专辑封面
    
-3. iTunes 单曲兜底 (entity=song)
+3. iTunes 单曲搜索 (entity=song)
+   → 依次尝试 Q1-Q5 查询
+   → 找到 15 个候选后停止
    → 评分 > 50 分
    
 4. 失败缓存 10 分钟
@@ -262,11 +294,18 @@ const getActiveLyricIndex = (lines: LyricsLine[], currentTimeMs: number) => {
 }
 ```
 
-### 在线歌词获取策略
-1. 优先从 LRCLIB 获取带时间戳的 LRC 格式歌词
-2. 若失败，从 lyrics.ovh 获取纯文本歌词
-3. 内存缓存 + 请求 ID 防止竞态条件
-4. 8 秒超时保证响应速度
+### 智能歌词获取策略
+1. **本地优先**：检查音频文件同目录下的 `.lrc` 文件（最高优先级，跳过在线搜索）
+2. **多源并行**：同时调用 4 个数据源
+   - LRCLIB（国际，LRC 格式）
+   - 网易云音乐（国内，LRC 格式，UTF-8 编码）
+   - 酷狗音乐（国内，LRC 格式，Base64 + UTF-8 解码）
+   - lyrics.ovh（备用，纯文本）
+3. **智能过滤**：优先返回带时间戳的候选，只有所有源都没有 LRC 时才返回纯文本
+4. **性能优化**：
+   - Promise.allSettled 并行请求
+   - 内存缓存 + 请求 ID 防止竞态条件
+   - 8 秒超时保证响应速度
 
 ### 安全的 IPC 通信
 使用 contextBridge 在主进程和渲染进程间安全通信：
@@ -297,11 +336,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 - [ ] 音乐标签编辑
 - [ ] 均衡器支持
 - [ ] 主题自定义
-- [ ] macOS/Lin
-- [ ] 优化歌词搜索算法，提升匹配精准度
-- [ ] 优化封面搜索算法，提升匹配精准度
-- [ ] 支持手动选择/上传封面和歌词ux 平台测试和优化
-- [ ] 更多在线音乐源支持
+- [ ] macOS/Linux 平台测试和优化
+- [ ] 支持手动选择/上传封面和歌词
+- [ ] 更多在线歌词源支持（QQ 音乐、Apple Music 等）
 
 ## 📄 开源协议
 

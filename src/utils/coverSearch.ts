@@ -85,15 +85,129 @@ function isInFailedCache(key: string): boolean {
 
 /**
  * 清理关键词（针对 iTunes 优化）
+ * @param str - 原始字符串
+ * @param keepQualifiers - 是否保留 qualifiers（默认 false）
  */
-function cleanKeywordsForItunes(str: string): string {
-  return str
-    .replace(/[\(\（\[【].*?[\)\）\]】]/g, '')  // 去括号
+function cleanKeywordsForItunes(str: string, keepQualifiers = false): string {
+  let cleaned = str
+  
+  if (!keepQualifiers) {
+    cleaned = cleaned.replace(/[\(\（\[【].*?[\)\）\]】]/g, '')  // 去括号
+  }
+  
+  return cleaned
     .replace(/\s+(?:feat\.?|ft\.?|featuring)\s+.*/gi, '')  // 去 feat
-    .replace(/\b(remastered?|official|audio|lyrics|video|hd|hq|explicit|deluxe)\b/gi, '')  // 去噪音
-    .replace(/[_\-]+/g, ' ')  // 统一符号
-    .replace(/\s+/g, ' ')
+    .replace(/\b(official|audio|lyrics|video|hd|hq)\b/gi, '')  // 去无意义噪音（保留 remastered/deluxe/explicit）
+    .replace(/[_]+/g, ' ')  // 下划线转空格
+    .replace(/\s+/g, ' ')  // 统一多余空格
     .trim()
+}
+
+/**
+ * 提取重要的版本修饰符（用于封面搜索）
+ * 只保留高价值关键词：ten minute / taylor's version / from the vault / live / acoustic / remaster
+ */
+function extractImportantQualifiers(qualifiers: string[] | undefined): string[] {
+  if (!qualifiers || qualifiers.length === 0) return []
+  
+  const HIGH_VALUE_KEYWORDS = [
+    'minute', 'min', 'hour',                      // 时长
+    "taylor's", 'taylors', 'version',           // 版本
+    'from the vault', 'vault',                   // 特殊版本
+    'live', 'acoustic', 'remaster', 'remastered' // 演出/混音
+  ]
+  
+  const important: string[] = []
+  
+  for (const qualifier of qualifiers) {
+    const lower = qualifier.toLowerCase()
+    
+    // 检查是否包含高价值关键词
+    const hasHighValue = HIGH_VALUE_KEYWORDS.some(kw => lower.includes(kw))
+    
+    if (hasHighValue) {
+      // 清洗：去括号、去填充词
+      let cleaned = qualifier
+        .replace(/[\(\)\[\]]/g, '')
+        .replace(/\b(the|from|original)\b/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+      
+      if (cleaned.length > 0) {
+        important.push(cleaned)
+      }
+    }
+  }
+  
+  return important
+}
+
+/**
+ * 构建 iTunes 多级降级查询（包含 qualifiers）
+ * @param normalized - 标准化信息
+ * @returns 多级查询数组（按优先级排序）
+ */
+function buildItunesQueries(normalized: NormalizedTrackInfo): string[] {
+  const { artist, titleCore, titleQualifiers, album } = normalized
+  const queries: string[] = []
+  
+  // 提取重要 qualifiers
+  const importantQualifiers = extractImportantQualifiers(titleQualifiers)
+  const qualifiersStr = importantQualifiers.join(' ')
+  
+  // 调试：打印 qualifiers
+  if (isDev && importantQualifiers.length > 0) {
+    console.log(`📌 [iTunes Query] 重要 qualifiers: [${importantQualifiers.join(', ')}]`)
+  }
+  
+  // Q1: artist + titleCore + importantQualifiers（最精准）
+  if (artist && titleCore && qualifiersStr) {
+    const q1 = cleanKeywordsForItunes(`${artist} ${titleCore} ${qualifiersStr}`)
+    if (q1.length <= 60) {
+      queries.push(q1)
+    }
+  }
+  
+  // Q2: artist + titleCore（标准查询）
+  if (artist && titleCore) {
+    const q2 = cleanKeywordsForItunes(`${artist} ${titleCore}`)
+    if (q2.length <= 60) {
+      queries.push(q2)
+    }
+  }
+  
+  // Q3: titleCore + importantQualifiers（无 artist）
+  if (titleCore && qualifiersStr) {
+    const q3 = cleanKeywordsForItunes(`${titleCore} ${qualifiersStr}`)
+    if (q3.length <= 60) {
+      queries.push(q3)
+    }
+  }
+  
+  // Q4: titleCore（纯标题兜底）
+  if (titleCore) {
+    const q4 = cleanKeywordsForItunes(titleCore)
+    if (q4.length <= 60) {
+      queries.push(q4)
+    }
+  }
+  
+  // Q5: album + titleCore（专辑 + 标题）
+  if (album && titleCore) {
+    const q5 = cleanKeywordsForItunes(`${album} ${titleCore}`)
+    if (q5.length <= 60) {
+      queries.push(q5)
+    }
+  }
+  
+  // 去重（保持顺序）
+  const uniqueQueries = Array.from(new Set(queries))
+  
+  if (isDev) {
+    console.log(`🔍 [iTunes Query] 生成 ${uniqueQueries.length} 级查询:`, uniqueQueries)
+  }
+  
+  return uniqueQueries
 }
 
 /**
@@ -160,49 +274,74 @@ async function searchAlbumsFromItunes(
 }
 
 /**
- * 从 iTunes 搜索单曲（entity=song）
+ * 从 iTunes 搜索单曲（entity=song）- 支持多级查询
+ * @param queries - 多级查询数组（按优先级排序）
+ * @param limit - 每个查询的结果数量
  */
 async function searchSongsFromItunes(
-  keywords: string,
+  queries: string[],
   limit = 10
 ): Promise<CoverCandidate[]> {
-  try {
-    const cleanKeywords = cleanKeywordsForItunes(keywords)
+  const allCandidates: CoverCandidate[] = []
+  
+  // 依次尝试每级查询（找到足够结果就停止）
+  for (let i = 0; i < queries.length; i++) {
+    const query = queries[i]
     
-    if (!cleanKeywords) return []
+    if (!query || query.trim().length === 0) continue
     
-    console.log(`🔍 [iTunes Song] 搜索: "${cleanKeywords}"`)
-    
-    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(cleanKeywords)}&media=music&entity=song&limit=${limit}`
-    
-    const response = await fetch(url)
-    if (!response.ok) {
-      console.error(`❌ [iTunes Song] HTTP ${response.status}`)
-      return []
+    try {
+      console.log(`🔍 [iTunes Song Q${i + 1}/${queries.length}] "${query}"`)
+      
+      const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=${limit}`
+      
+      const response = await fetch(url)
+      if (!response.ok) {
+        console.error(`❌ [iTunes Song Q${i + 1}] HTTP ${response.status}`)
+        continue
+      }
+      
+      const data = await response.json()
+      
+      if (!data.results || data.results.length === 0) {
+        console.log(`⚠️ [iTunes Song Q${i + 1}] 无结果`)
+        continue
+      }
+      
+      const songs: CoverCandidate[] = data.results.map((result: any) => ({
+        title: result.trackName || '',
+        artist: result.artistName || '',
+        album: result.collectionName || '',
+        duration: result.trackTimeMillis ? Math.round(result.trackTimeMillis / 1000) : undefined,
+        artworkUrl: result.artworkUrl100 || result.artworkUrl60 || '',
+        source: `itunes-song-q${i + 1}`
+      }))
+      
+      allCandidates.push(...songs)
+      console.log(`✅ [iTunes Song Q${i + 1}] 找到 ${songs.length} 个候选 (累计: ${allCandidates.length})`)
+      
+      // 找到足够候选就停止（避免冗余查询）
+      if (allCandidates.length >= 15) {
+        console.log(`🎯 [iTunes Song] 累计 ${allCandidates.length} 个候选，停止查询`)
+        break
+      }
+      
+    } catch (error) {
+      console.error(`❌ [iTunes Song Q${i + 1}] 失败:`, error)
+      continue
     }
-    
-    const data = await response.json()
-    
-    if (!data.results || data.results.length === 0) {
-      console.log('⚠️ [iTunes Song] 无结果')
-      return []
-    }
-    
-    const songs: CoverCandidate[] = data.results.map((result: any) => ({
-      title: result.trackName || '',
-      artist: result.artistName || '',
-      album: result.collectionName || '',
-      duration: result.trackTimeMillis ? Math.round(result.trackTimeMillis / 1000) : undefined,
-      artworkUrl: result.artworkUrl100 || result.artworkUrl60 || '',
-      source: 'itunes-song'
-    }))
-    
-    console.log(`✅ [iTunes Song] 找到 ${songs.length} 个单曲`)
-    return songs
-  } catch (error) {
-    console.error('❌ [iTunes Song] 失败:', error)
-    return []
   }
+  
+  // 去重（按 artworkUrl）
+  const uniqueCandidates = Array.from(
+    new Map(allCandidates.map(c => [c.artworkUrl, c])).values()
+  )
+  
+  if (isDev && allCandidates.length > uniqueCandidates.length) {
+    console.log(`🔄 [iTunes Song] 去重: ${allCandidates.length} → ${uniqueCandidates.length}`)
+  }
+  
+  return uniqueCandidates
 }
 
 /**
@@ -245,14 +384,14 @@ async function getAlbumTracks(collectionId: number): Promise<CoverCandidate[]> {
 }
 
 /**
- * 专辑优先 + 单曲兜底搜索策略
+ * 专辑优先 + 单曲兜底搜索策略（支持 qualifiers）
  */
 async function searchWithAlbumPriority(
-  artist?: string,
-  title?: string,
-  album?: string
+  normalized: NormalizedTrackInfo
 ): Promise<CoverCandidate[]> {
   let allCandidates: CoverCandidate[] = []
+  
+  const { artist, titleCore, album } = normalized
   
   // 1. 优先搜索专辑（如果有 album 信息）
   if (artist && album) {
@@ -263,7 +402,7 @@ async function searchWithAlbumPriority(
       
       // 将专辑转换为候选结果
       const albumCandidates: CoverCandidate[] = albums.map(a => ({
-        title: title || '',
+        title: titleCore || '',
         artist: a.artistName,
         album: a.collectionName,
         artworkUrl: a.artworkUrl,
@@ -274,12 +413,10 @@ async function searchWithAlbumPriority(
     }
   }
   
-  // 2. 兜底：搜索单曲
-  if (artist && title) {
-    const keywords = `${artist} ${title}`
-    const songs = await searchSongsFromItunes(keywords, 10)
-    allCandidates.push(...songs)
-  }
+  // 2. 兜底：搜索单曲（使用多级查询）
+  const queries = buildItunesQueries(normalized)
+  const songs = await searchSongsFromItunes(queries, 10)
+  allCandidates.push(...songs)
   
   return allCandidates
 }
@@ -377,52 +514,15 @@ function createCoverSearchFn(normalized: NormalizedTrackInfo) {
       return { url: coverUrl, source: 'itunes-album-fallback' }
     }
     
-    // ===== trackSearch 策略（多级降级）=====
+    // ===== trackSearch 策略（多级降级 + qualifiers）=====
     if (type === 'trackSearch') {
-      let allCandidates: CoverCandidate[] = []
+      console.log(`🔍 [trackSearch] 使用智能查询（支持 qualifiers）`)
       
-      // 构建多级查询
-      const queries: string[] = []
-      
-      if (query.artist && query.title) {
-        queries.push(`${query.artist} ${query.title}`)       // artist + title
-        queries.push(`${query.title} ${query.artist}`)       // title + artist (反转)
-      }
-      
-      if (query.album && query.title) {
-        queries.push(`${query.album} ${query.title}`)        // album + title
-      }
-      
-      if (query.title) {
-        queries.push(query.title)                            // title 单独
-      }
-      
-      if (query.keywords) {
-        const topKeywords = query.keywords.split(' ').slice(0, 3).join(' ')
-        queries.push(topKeywords)                            // 前3个关键词
-      }
-      
-      console.log(`🔍 [trackSearch] 多级降级查询: ${queries.length} 级`)
-      
-      // 依次尝试每级查询（使用专辑优先策略）
-      for (let i = 0; i < queries.length && allCandidates.length < 5; i++) {
-        console.log(`   级别${i + 1}: "${queries[i]}"`)
-        
-        const candidates = await searchWithAlbumPriority(
-          query.artist,
-          query.title,
-          query.album
-        )
-        
-        if (candidates.length > 0) {
-          allCandidates.push(...candidates)
-          console.log(`   ✅ 找到 ${candidates.length} 个候选`)
-          break  // 找到就停止
-        }
-      }
+      // 使用新的 searchWithAlbumPriority（内部调用 buildItunesQueries）
+      const allCandidates = await searchWithAlbumPriority(normalized)
       
       if (allCandidates.length === 0) {
-        console.log('❌ [trackSearch] 所有级别均未找到结果')
+        console.log('❌ [trackSearch] 未找到任何候选')
         return null
       }
       
@@ -432,6 +532,17 @@ function createCoverSearchFn(normalized: NormalizedTrackInfo) {
       )
       
       console.log(`🎯 [trackSearch] 收集到 ${uniqueCandidates.length} 个唯一候选`)
+      
+      // Debug：打印每个候选的分数
+      if (isDev && uniqueCandidates.length > 0) {
+        console.log('\n📊 [trackSearch Debug] 候选评分明细:')
+        for (const candidate of uniqueCandidates) {
+          const scoreResult = selectBestCandidate(normalized, [candidate], { threshold: 0 })
+          if (scoreResult) {
+            console.log(`   [${scoreResult.score.score}分] "${candidate.title}" - ${candidate.artist} | ${candidate.source}`)
+          }
+        }
+      }
       
       // 单个候选：直接使用
       if (uniqueCandidates.length === 1) {
@@ -507,12 +618,23 @@ export async function resolveCover(track: Track): Promise<CoverResult> {
   try {
     // 3. 标准化信息
     const normalized = normalizeTrackInfo(track)
-    console.log('   标准化:', {
-      artist: normalized.artist,
-      title: normalized.title,
-      album: normalized.album,
-      keywords: normalized.keywords.slice(0, 5)
-    })
+    
+    // Debug：打印详细信息（包含 qualifiers）
+    if (isDev) {
+      console.log('   标准化详情:', {
+        displayTitle: normalized.displayTitle,
+        titleCore: normalized.titleCore,
+        titleQualifiers: normalized.titleQualifiers,
+        artist: normalized.artist,
+        album: normalized.album
+      })
+    } else {
+      console.log('   标准化:', {
+        artist: normalized.artist,
+        title: normalized.title,
+        album: normalized.album
+      })
+    }
     
     // 4. 生成搜索计划
     const plan = buildSearchPlan(normalized)

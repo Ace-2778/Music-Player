@@ -24,6 +24,7 @@ declare global {
       addLibraryFolder: (folderPath: string) => Promise<string[]>
       removeLibraryFolder: (folderPath: string) => Promise<string[]>
       clearCoverCache: (trackId: string) => Promise<boolean>
+      readLocalLrc: (audioFilePath: string) => Promise<{ success: boolean; content: string | null; path: string | null; error?: string }>
     }
   }
 }
